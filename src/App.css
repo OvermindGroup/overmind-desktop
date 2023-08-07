@@ -1,0 +1,45 @@
+/* App.css */
+
+/* Optional: Add some basic styles to the container and header */
+.container {
+  padding: 20px;
+}
+
+h1 {
+  margin-bottom: 20px;
+}
+
+/* Table styles */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #ddd;
+  font-size: 10pt; /* Default font size */
+}
+
+.table th,
+.table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+  white-space: nowrap; /* Prevent text wrapping in table cells */
+}
+
+/* Optional: Style the table header row */
+.table thead th {
+  background-color: #f2f2f2;
+  font-weight: bold;
+}
+
+/* Optional: Add some spacing between table cells */
+.table td {
+  padding: 12px 8px;
+}
+
+/* Responsive styles for 1024x768 window */
+@media screen and (max-width: 1024px) {
+  /* Adjust font size for smaller screens */
+  .table {
+    font-size: 12px;
+  }
+}
