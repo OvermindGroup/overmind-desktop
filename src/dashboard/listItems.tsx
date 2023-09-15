@@ -15,19 +15,22 @@ export const mainListItems = (handleClick) => (
     <ListSubheader component="div" inset>
       Investment Portfolio
     </ListSubheader>
-    <ListItemButton onClick={() => handleClick('recommended-portfolio')}>
+    <ListItemButton onClick={() => handleClick('recommended-portfolio')}
+                    className="recommended-portfolio-menu-item">
       <ListItemIcon>
         <ShowChartIcon />
       </ListItemIcon>
       <ListItemText primary="Recommended Portfolio" />
     </ListItemButton>
-    <ListItemButton onClick={() => handleClick('current-portfolio')}>
+    <ListItemButton onClick={() => handleClick('current-portfolio')}
+                    className="current-portfolio-menu-item">
       <ListItemIcon>
         <AttachMoneyIcon />
       </ListItemIcon>
       <ListItemText primary="Current Portfolio" />
     </ListItemButton>
-    <ListItemButton onClick={() => handleClick('execute-portfolio')}>
+    <ListItemButton onClick={() => handleClick('to-execute-portfolio')}
+                    className="to-execute-menu-item">
       <ListItemIcon>
         <SyncAltIcon />
       </ListItemIcon>
@@ -39,19 +42,21 @@ export const mainListItems = (handleClick) => (
 export const secondaryListItems = (handleClick) => (
   <React.Fragment>
     <ListSubheader component="div" inset>
-      Saved reports
+      Reports
     </ListSubheader>
-    <ListItemButton>
+    <ListItemButton onClick={() => handleClick('earnings-report')}
+                    className="earnings-report-menu-item">
       <ListItemIcon>
         <AssignmentIcon />
       </ListItemIcon>
-      <ListItemText primary="Current month" />
+      <ListItemText primary="Earnings" />
     </ListItemButton>
-    <ListItemButton>
+    <ListItemButton onClick={() => handleClick('portfolio-report')}
+                    className="portfolio-report-menu-item">
       <ListItemIcon>
         <AssignmentIcon />
       </ListItemIcon>
-      <ListItemText primary="Last quarter" />
+      <ListItemText primary="Investment Portfolio" />
     </ListItemButton>
   </React.Fragment>
 );
@@ -61,7 +66,8 @@ export const configListItems = (handleClick) => (
     <ListSubheader component="div" inset>
       Configuration
     </ListSubheader>
-    <ListItemButton onClick={() => handleClick('api-keys')}>
+    <ListItemButton onClick={() => handleClick('api-keys')}
+                    className="api-keys-menu-item">
       <ListItemIcon>
         <SettingsIcon />
       </ListItemIcon>

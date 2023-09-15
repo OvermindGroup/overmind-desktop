@@ -23,6 +23,11 @@ hmac = "0.10"
 sha2 = "0.9"
 hex = "0.4"
 
+[dependencies.tauri-plugin-sql]
+git = "https://github.com/tauri-apps/plugins-workspace"
+branch = "v1"
+features = ["sqlite"]
+
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
 # DO NOT REMOVE!!

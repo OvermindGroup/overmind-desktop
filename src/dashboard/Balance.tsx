@@ -19,15 +19,24 @@ function getDateTime() {
   return `${day}/${month + 1}/${year}, ${hours}:${minutes}:${seconds}`
 }
 
-export default function Balance({ balance }) {
+export default function Balance({ usdtBalance, btcBalance }) {
+  const [balanceDateTime, setBalanceDateTime] = React.useState([]);
+
+  React.useEffect(() => {
+    setBalanceDateTime(getDateTime())
+  }, [usdtBalance])
+
   return (
     <React.Fragment>
       <Title>Total Assets Value</Title>
       <Typography component="p" variant="h5">
-        ${balance} BTC
+        {btcBalance.toFixed(8)} BTC
+      </Typography>
+      <Typography component="p" variant="h6">
+        ~${usdtBalance.toFixed(2)} USDT
       </Typography>
       <Typography color="text.secondary" sx={{ flex: 1 }}>
-        {getDateTime()}
+        {balanceDateTime}
       </Typography>
     </React.Fragment>
   );

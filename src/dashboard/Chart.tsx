@@ -3,37 +3,39 @@ import { useTheme } from '@mui/material/styles';
 import { LineChart, Line, XAxis, YAxis, Label, ResponsiveContainer } from 'recharts';
 import Title from './Title';
 
-// Generate Sales Data
 function createData(time: string, amount?: number) {
   return { time, amount };
 }
 
-const data = [
-  createData('00:00', 0),
-  createData('03:00', 300),
-  createData('06:00', 600),
-  createData('09:00', 800),
-  createData('12:00', 1500),
-  createData('15:00', 2000),
-  createData('18:00', 2400),
-  createData('21:00', 2400),
-  createData('24:00', undefined),
-];
-
-export default function Chart() {
+export default function Chart({ data }) {
   const theme = useTheme();
+  const [chartData, setChartData] = React.useState([]);
+
+  React.useEffect(() => {
+    let newChartData = []
+    for (const dayData of data) {
+      const date = new Date(dayData.updateTime);
+
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const day = date.getDate().toString().padStart(2, '0');
+
+      const dateString = `${month}-${day}`;
+      newChartData.push(createData(dateString, parseFloat(dayData.data.totalAssetOfBtc)))
+      setChartData(newChartData)
+    }
+  }, [data])
 
   return (
     <React.Fragment>
-      <Title>Today</Title>
+      <Title>Account Snapshot</Title>
       <ResponsiveContainer>
         <LineChart
-          data={data}
+          data={chartData}
           margin={{
             top: 16,
             right: 16,
             bottom: 0,
-            left: 24,
+            left: 60,
           }}
         >
           <XAxis
@@ -44,6 +46,7 @@ export default function Chart() {
           <YAxis
             stroke={theme.palette.text.secondary}
             style={theme.typography.body2}
+            domain={['dataMin', 'dataMax']}
           >
             <Label
               angle={270}
@@ -53,8 +56,9 @@ export default function Chart() {
                 fill: theme.palette.text.primary,
                 ...theme.typography.body1,
               }}
+              dx={-40}
             >
-              Sales ($)
+              Account BTC Value
             </Label>
           </YAxis>
           <Line

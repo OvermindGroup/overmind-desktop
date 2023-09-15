@@ -1,15 +1,5 @@
 import { readTextFile as tauriReadTextFile, writeTextFile as tauriWriteTextFile } from '@tauri-apps/api/fs';
 
-// Function to check if the file exists
-export async function checkFileExists(filePath: string): Promise<boolean> {
-    try {
-        return await tauriExists(filePath);
-    } catch (error) {
-        console.error('Error checking file existence:', error);
-        return false;
-    }
-}
-
 export async function readTextFile(filePath: string): Promise<string> {
     try {
         return await tauriReadTextFile(filePath);

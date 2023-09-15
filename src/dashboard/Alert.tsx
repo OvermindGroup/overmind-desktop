@@ -6,27 +6,29 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 
-export default function Alert({ message }) {
+export default function Alert({ title, message, action, closeAction }) {
     const [open, setOpen] = React.useState(true);
 
-    const handleClickOpen = () => {
-        setOpen(true);
-    };
+    const handleCancel = () => {
+        setOpen(false)
+        closeAction()
+    }
 
-    const handleClose = () => {
-        setOpen(false);
+    const handleOk = () => {
+        setOpen(false)
+        action()
     };
 
     return (
         <div>
             <Dialog
                 open={open}
-                onClose={handleClose}
+                onClose={handleCancel}
                 aria-labelledby="alert-dialog-title"
                 aria-describedby="alert-dialog-description"
             >
                 <DialogTitle id="alert-dialog-title">
-                    {""}
+                    {title}
                 </DialogTitle>
                 <DialogContent>
                     <DialogContentText id="alert-dialog-description">
@@ -34,9 +36,14 @@ export default function Alert({ message }) {
                     </DialogContentText>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleClose} autoFocus>
-                        Ok
+                    <Button onClick={handleCancel} autoFocus>
+                        Close
                     </Button>
+                    {(action !== null) && (
+                        <Button onClick={handleOk}>
+                            Yes
+                        </Button>
+                    )}
                 </DialogActions>
             </Dialog>
         </div>

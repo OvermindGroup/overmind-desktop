@@ -1,0 +1,44 @@
+.badge-icon:hover {
+  cursor: pointer;
+}
+
+.badge-icon:hover .error-icon {
+  color: #f44336;
+}
+
+.badge-icon:hover .warning-icon {
+  color: #ffa726;
+}
+
+.info-icon {
+  color: #29b6f6;
+}
+
+.success-icon {
+  color: #66bb6a;
+}
+
+.badge-icon:hover .primary-icon {
+  color: #90caf9;
+}
+
+.badge-icon:hover .secondary-icon {
+  color: #ce93d8;
+}
+
+.outlined {
+  text-shadow: 2px 2px 0 #000,
+  -2px -2px 0 #000,
+  2px -2px 0 #000,
+  -2px 2px 0 #000,
+  0px 2px 0 #000,
+  2px 0px 0 #000,
+  0px -2px 0 #000,
+  -2px 0px 0 #000;
+}
+
+.tooltip-class {
+  color: #fff;
+  text-align: center;
+  background-color: #0F0F0F;
+}
