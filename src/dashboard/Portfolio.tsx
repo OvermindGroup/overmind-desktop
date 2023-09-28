@@ -35,13 +35,13 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import Alert from './Alert';
 import CandlestickChart from './CandlestickChart';
 import RevenueChart from './RevenueChart';
+import Earnings from './Earnings';
 
 import { getReports, fetchAssetPrices } from '../dataHelpers'
 import './styles.css'
 
 const earningsColumns = [
-    { Header: "Asset", accessor: "instrument", format: "asset"},
-    { Header: "Allocation (%)", accessor: "allocation", format: "percentage" },
+
 ]
 
 const reportColumns = [
@@ -59,7 +59,8 @@ const recommendedPortfolioColumns = [
     { Header: "Take Profit", accessor: "takeProfit", collapsable: true },
     { Header: "Stop Loss", accessor: "stopLoss", collapsable: true },
     { Header: "Hold Duration", accessor: "horizonFormatted", collapsable: true },
-    { Header: "Risk Reward", accessor: "riskReward", format: "twoDecimals" }
+    { Header: "Risk Reward", accessor: "riskReward", format: "twoDecimals" },
+    { Header: "Remove", format: "removeOrder" }
 ];
 
 const currentPortfolioColumns = [
@@ -67,7 +68,7 @@ const currentPortfolioColumns = [
     { Header: "Allocation ($)", accessor: "free" },
     { Header: "Allocation (%)", accessor: "allocation", format: "percentage"},
     { Header: "BTC Valuation", accessor: "btcValuation" },
-    { Header: "Ready for Reallocation?", accessor: "expired", format: "boolean" },
+    { Header: "Ready for Reallocation?", accessor: "expired", format: "boolean" }
 ];
 
 const executePortfolioColumns = [
@@ -76,7 +77,7 @@ const executePortfolioColumns = [
     { Header: "Amount to Convert", accessor: "amount" },
     { Header: "Allocation (% of Total Portfolio)", accessor: "allocation", format: "percentage" },
     { Header: "Status", accessor: "status", format: "status" },
-    { Header: "Remove Order", format: "removeOrder" },
+    { Header: "Remove Order", format: "removeOrder" }
 ];
 
 const formatPercentage = (cellValue) => {
@@ -130,11 +131,11 @@ const getTableMetadata = (type:string ) => {
     }
     if (type == 'earnings-report') {
         columns = earningsColumns
-        title = 'Earnings Report'
+        title = 'Profit & Loss'
     }
     if (type == 'portfolio-report') {
         columns = reportColumns
-        title = 'Portfolio Report'
+        title = 'Risk Management'
     }
     return { columns, title }
 }
@@ -511,92 +512,6 @@ export default function Portfolio({ data, type, actions, alerts, dataHandler, va
     };
 
     useEffect(() => {
-        if (type !== 'portfolio-report')
-            return
-        getReports(1).then((rows) => {
-            const data = JSON.parse(rows[0].report) // We always get 1.
-
-            const _reports = {
-                transactions: [],
-                symbols: [],
-                timestamp: data.timestamp,
-                btcValueBefore: data.valuationsBefore.btcValue,
-                btcValueAfter: data.valuationsAfter.btcValue,
-                usdtValueBefore: data.valuationsBefore.usdtValue,
-                usdtValueAfter: data.valuationsAfter.usdtValue,
-                startingPrices: data.startingPrices,
-                toAmounts: data.toAmounts
-            }
-            for (const transaction of data.ordersToExecute) {
-                const from = transaction.from.slice(0, -3).toUpperCase()
-                const to = transaction.to.slice(0, -3).toUpperCase()
-                // const symbol = `${from}${to}`
-                const report = {
-                    from,
-                    to,
-                    // symbol,
-                    startingPrice: data.startingPrices[`${to}USDT`],
-                    amount: transaction.amount,
-                    takeProfit: transaction.takeProfit,
-                    stopLoss: transaction.stopLoss,
-                    horizon: transaction.horizon,
-                    /* timeRemaining: (data.timestamp + transaction.horizon * 1000) - new Date().getTime(),
-                     * expired: (data.timestamp + transaction.horizon * 1000) < new Date().getTime() */
-                }
-                // _reports.symbols.push(symbol)
-                _reports.symbols.push(`${to}USDT`)
-                _reports.transactions.push(report)
-            }
-            setReportsData(_reports)
-        })
-    }, [])
-
-    useEffect(() => {
-        console.log({type})
-        if (!reportsData.hasOwnProperty('symbols') || type !== 'portfolio-report')
-            return
-
-        const symbols = [...new Set(reportsData.symbols)]
-        fetchAssetPrices(symbols).then((prices) => {
-            const _tableData = {}
-            for (const transaction of reportsData.transactions) {
-                const symbol = `${transaction.to}USDT`
-                const startPrice = parseFloat(transaction.startingPrice)
-                const tp = transaction.takeProfit
-                const sl = transaction.stopLoss
-                const price = parseFloat(prices[symbol])
-                const priceDiff = price - startPrice
-                const toAmount = reportsData.toAmounts[transaction.to]
-                const tpDistance = Math.abs(price - (startPrice + tp)) * toAmount
-                const slDistance = Math.abs(price - (startPrice + sl)) * toAmount
-                const upnl = (tp > 0 ? priceDiff : priceDiff * -1) * toAmount
-                const timeRemaining = (reportsData.timestamp + transaction.horizon * 1000) - new Date().getTime()
-                const expired = (reportsData.timestamp + transaction.horizon * 1000) < new Date().getTime()
-
-                if (!_tableData.hasOwnProperty(transaction.from))
-                    _tableData[transaction.to] = {
-                        asset: transaction.to,
-                        tpDistance,
-                        slDistance,
-                        upnl,
-                        timeRemaining,
-                        expired
-                    }
-                else
-                    _tableData[transaction.to].upnl += upnl
-            }
-
-            let totalUnPnL = 0.0
-            for (const key in _tableData) {
-                totalUnPnL += _tableData[key].upnl
-            }
-            console.log({totalUnPnL}, reportsData.usdtValueAfter)
-            setTableData(Object.values(_tableData))
-            setTableReady(true)
-        })
-    }, [reportsData, refresh])
-
-    useEffect(() => {
         const populateAlertRows = () => {
             if (type !== 'to-execute-portfolio')
                 return
@@ -637,7 +552,6 @@ export default function Portfolio({ data, type, actions, alerts, dataHandler, va
                         };
                 }
             }
-            console.log({newAlertRows})
             if (Object.keys(newAlertRows).length > 0)
                 setAlertRows(newAlertRows);
         };
@@ -677,11 +591,27 @@ export default function Portfolio({ data, type, actions, alerts, dataHandler, va
                     <Alert title={alertTitle} message={alertMessage} action={alertAction} closeAction={handleAlertClose} />
                 )}
                 <Title variant="h4">{title}</Title>
-                {type === 'current-portfolio' && (
-                    <React.Fragment>
-                        <Paragraph>The table below shows all of your currently held assets and their allocations.</Paragraph>
-                        <Title variant="h6"></Title>
-                    </React.Fragment>
+                {type === 'earnings-report' && (
+                    <Earnings />
+                )}
+                {type === 'current-portfolio' &&
+                 actions.hasOwnProperty('convertToBnb') && (
+                     <React.Fragment>
+                         <Paragraph>The table below shows all of your currently held assets and their allocations.</Paragraph>
+                         <Title variant="h6">Convert small assets to BNB</Title>
+                         <Paragraph>Binance does not allow you to convert small balances of assets to other symbols, with the exception of BNB. You can convert all of your small balances first, so you can later convert your BNB to other symbols.</Paragraph>
+                         <CustomButton variant="contained" disabled={validating || validatedPortfolio} onClick={() => {
+                             setValidating(true)
+                             setValidatingBtnMsg("Converting...")
+                             actions.convertToBnb().then(() => {
+                                 setValidatingBtnMsg("Convert Small Balances To BNB")
+                                 setValidating(false)
+                             })
+                         }}>
+                             Convert Small Balances To BNB
+                         </CustomButton>
+                         <Title variant="h6"></Title>
+                     </React.Fragment>
                 )}
                 {type === 'recommended-portfolio' &&
                  actions.hasOwnProperty('improvePortfolio') &&
@@ -860,43 +790,48 @@ export default function Portfolio({ data, type, actions, alerts, dataHandler, va
                          <Title variant="h6"></Title>
                      </React.Fragment>
                 )}
-                <TableContainer component={Paper}>
-                    <Table {...getTableProps()} aria-label="collapsible table">
-                        <TableHead>
-                            {headerGroups.map((headerGroup) => (
-                                <StyledTableRow {...headerGroup.getHeaderGroupProps()}>
-                                    {type === 'recommended-portfolio' && (
-                                        <StyledTableCell>
-                                            More Info
-                                        </StyledTableCell>
-                                    )}
-                                    {headerGroup.headers.map((column) => (
-                                        !column.collapsable ? (
-                                            <StyledTableCell align="center" {...column.getHeaderProps()}>
-                                                {column.render("Header")}
+                {type !== 'earnings-report' && (
+                    <TableContainer component={Paper}>
+                        {type == 'portfolio-report' && (
+                            <Button onClick={() => setRefresh(!refresh)}>Refresh</Button>
+                        )}
+                        <Table {...getTableProps()} aria-label="collapsible table">
+                            <TableHead>
+                                {headerGroups.map((headerGroup) => (
+                                    <StyledTableRow {...headerGroup.getHeaderGroupProps()}>
+                                        {type === 'recommended-portfolio' && (
+                                            <StyledTableCell>
+                                                More Info
                                             </StyledTableCell>
-                                        ) : null
-                                    ))}
-                                </StyledTableRow>
-                            ))}
-                        </TableHead>
-                        <TableBody {...getTableBodyProps()}>
-                            {rows.map((row, index) => {
-                                prepareRow(row);
-                                return (
-                                    <Row data={row}
-                                         key={row.id}
-                                         type={type}
-                                         alertRows={alertRows}
-                                         removeRowAction={removeRowAction}
-                                         simulatedTradesHandler={simulatedTradesHandler}
-                                         accumulatedRevenueHandler={accumulatedRevenueHandler}
-                                    />
-                                );
-                            })}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
+                                        )}
+                                        {headerGroup.headers.map((column) => (
+                                            !column.collapsable ? (
+                                                <StyledTableCell align="center" {...column.getHeaderProps()}>
+                                                    {column.render("Header")}
+                                                </StyledTableCell>
+                                            ) : null
+                                        ))}
+                                    </StyledTableRow>
+                                ))}
+                            </TableHead>
+                            <TableBody {...getTableBodyProps()}>
+                                {rows.map((row, index) => {
+                                    prepareRow(row);
+                                    return (
+                                        <Row data={row}
+                                             key={row.id}
+                                             type={type}
+                                             alertRows={alertRows}
+                                             removeRowAction={removeRowAction}
+                                             simulatedTradesHandler={simulatedTradesHandler}
+                                             accumulatedRevenueHandler={accumulatedRevenueHandler}
+                                        />
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                )}
             </FormContainer>
         </React.Fragment>
     );
