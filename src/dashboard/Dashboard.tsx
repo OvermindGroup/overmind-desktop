@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect } from 'react';
 import { styled, createTheme, ThemeProvider } from '@mui/material/styles';
 import { exit } from '@tauri-apps/api/process';
 
@@ -32,10 +32,9 @@ import { mainListItems,
          secondaryListItems,
          configListItems
 } from './listItems';
-import Chart from './Chart';
+import News from './News';
 import Settings from './Settings';
 import Balance from './Balance';
-import Report from './Report';
 import Portfolio from './Portfolio';
 import Alert from './Alert';
 
@@ -162,6 +161,12 @@ const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' 
 const defaultTheme = createTheme({palette: {mode: 'dark'}});
 // const defaultTheme = createTheme();
 
+const readingAPIKeysMsg = 'Reading API Keys'
+const fetchCurrentPortfolioMsg = 'Fetching current portfolio from Binance'
+const convertToBnbMsg = 'Converting to BNB'
+const fetchRecommendedPortfolioMsg = 'Fetching recommended portfolio from Overmind'
+const loadingPortfolioReportMsg = 'Loading risk management report'
+
 export default function Dashboard() {
   const [open, setOpen] = useState(true);
   const [portfolioType, setPortfolioType] = useState("none");
@@ -267,7 +272,6 @@ export default function Dashboard() {
   const callResetPortfolio = async (overmindApiKey:string) => {
     try {
       const data = await executeRefreshPortfolio(overmindApiKey)
-      console.log({data})
       setPortfolioData(data);
       setRecommendedPortfolioData(data);
     } catch (error) {
@@ -278,6 +282,7 @@ export default function Dashboard() {
   const callValidatePortfolio = async (ordersToExecute) => {
     try {
       setShowProgress(true)
+      setProgressValue(0)
       const quotes = []
       for (const idx in ordersToExecute) {
         const transaction = ordersToExecute[idx]
@@ -286,7 +291,7 @@ export default function Dashboard() {
         to = to.slice(0, -3).toUpperCase();
         setProgressLabel(`Validating ${from} 🠞 ${to}`)
         quotes.push(await getQuote(binanceApiKey, binanceSecretKey, transaction))
-        setProgressValue(Math.round((idx + 1) / ordersToExecute.length * 100))
+        setProgressValue(Math.round((parseFloat(idx) + 1) / ordersToExecute.length * 100))
         await sleep(500);
       }
 
@@ -343,13 +348,18 @@ export default function Dashboard() {
         else
           toAmounts[to] = parseFloat(quote.toAmount)
         symbols.push(`${to}USDT`)
-        setProgressValue(Math.round((idx + 1) / ordersToExecute.length * 100))
+        setProgressValue(Math.round((parseFloat(idx) + 1) / ordersToExecute.length * 100))
         await sleep(500)
       }
 
       await sleep(1000)
 
       setProgressLabel(`Preparing data`)
+      /* const currPortfolio = await updateCurrentPortfolio(binanceApiKey, binanceSecretKey)
+       * const symbols = []
+       * for (const entry of currentPortfolio) {
+       *   symbols.push(`${entry.asset}USDT`)
+       * } */
       const symbolsSet = [...new Set(symbols)]
       const startingPrices = await fetchAssetPrices(symbolsSet)
 
@@ -360,7 +370,6 @@ export default function Dashboard() {
       setProgressValue(25)
       await sleep(1000);
       const assetsAfter = await fetchUserAsset(binanceApiKey, binanceSecretKey)
-      console.log({assetsAfter})
       setProgressValue(50)
       await sleep(1000);
 
@@ -404,11 +413,16 @@ export default function Dashboard() {
 
   async function useRecommendedPortfolio(overmindApiKey:string) {
     try {
+      setProgressLabel(fetchRecommendedPortfolioMsg)
+      setProgressValue(45)
+      setShowProgress(true)
       const data = await fetchRecommendedPortfolio(overmindApiKey)
-      setPortfolioData(data);
+      setPortfolioData(data)
       setRecommendedPortfolioData(data);
+      setProgressValue(100)
       setPortfolioType('recommended-portfolio')
       setReportType('none')
+      setShowProgress(false)
       setPortfolioActions({
         improvePortfolio: async (iterations:number, maxTradeHorizon:number, tpPercentage:number, slPercentage:number) => {
           await callTrainPortfolio(overmindApiKey, iterations, maxTradeHorizon, tpPercentage, slPercentage)
@@ -424,104 +438,77 @@ export default function Dashboard() {
     }
   }
 
-  async function getLatestReport() {
-    const latestReport = await getReports(1)
-    const data = JSON.parse(latestReport[0].report) // We always get 1.
+  async function updateCurrentPortfolio(binanceApiKey:string, binanceSecretKey:string) {
+    const data = await fetchUserAsset(binanceApiKey, binanceSecretKey)
 
-    const _reports = {
-      transactions: [],
-      symbols: [],
-      timestamp: data.timestamp,
-      btcValueBefore: data.valuationsBefore.btcValue,
-      btcValueAfter: data.valuationsAfter.btcValue,
-      usdtValueBefore: data.valuationsBefore.usdtValue,
-      usdtValueAfter: data.valuationsAfter.usdtValue,
-      startingPrices: data.startingPrices,
-      toAmounts: data.toAmounts
+    // Removing extremely small asset holdings
+    const cleanedData = []
+    for (let asset of data) {
+      if (parseFloat(asset.btcValuation) == 0)
+        continue
+      cleanedData.push(asset)
     }
 
-    const symbols = []
+    const latestReport = await calculateRiskManagement(cleanedData)
 
-    for (const transaction of data.ordersToExecute) {
-      const from = transaction.from.slice(0, -3).toUpperCase()
-      const to = transaction.to.slice(0, -3).toUpperCase()
-      const report = {
-        from,
-        to,
-        startingPrice: data.startingPrices[`${to}USDT`],
-        amount: transaction.amount,
-        takeProfit: transaction.takeProfit,
-        stopLoss: transaction.stopLoss,
-        horizon: transaction.horizon,
+    const dataWithExpired = []
+    for (let asset of cleanedData) {
+      if (latestReport.hasOwnProperty(asset.asset)) {
+        asset.expired = latestReport[asset.asset].expired
       }
-      symbols.push(`${to}USDT`)
-      _reports.transactions.push(report)
-    }
-
-    _reports.symbols.push(...new Set(symbols))
-
-    const prices = await fetchAssetPrices(_reports.symbols)
-    const _tableData = {}
-    for (const transaction of _reports.transactions) {
-      const symbol = `${transaction.to}USDT`
-      const startPrice = parseFloat(transaction.startingPrice)
-      const tp = transaction.takeProfit
-      const sl = transaction.stopLoss
-      const price = parseFloat(prices[symbol])
-      const priceDiff = price - startPrice
-      const toAmount = _reports.toAmounts[transaction.to]
-      const tpDistance = Math.abs(price - (startPrice + tp)) * toAmount
-      const slDistance = Math.abs(price - (startPrice + sl)) * toAmount
-      const upnl = (tp > 0 ? priceDiff : priceDiff * -1) * toAmount
-      const timeRemaining = (_reports.timestamp + transaction.horizon * 1000) - new Date().getTime()
-      const expired = (_reports.timestamp + transaction.horizon * 1000) < new Date().getTime()
-
-      if (!_tableData.hasOwnProperty(transaction.from))
-        _tableData[transaction.to] = {
-          asset: transaction.to,
-          tpDistance,
-          slDistance,
-          upnl,
-          timeRemaining,
-          expired
-        }
       else
-        _tableData[transaction.to].upnl += upnl
+        asset.expired = true // To force a reallocation; something went wrong somehow
+      dataWithExpired.push(asset)
     }
 
-    let totalUnPnL = 0.0
-    for (const key in _tableData) {
-      totalUnPnL += _tableData[key].upnl
-    }
-    console.log({totalUnPnL}, _reports.usdtValueAfter)
-    /* setTableData(Object.values(_tableData))
-     * setTableReady(true) */
+    setCurrentPortfolioData(dataWithExpired)
+    return dataWithExpired
+  }
 
-    return _tableData
+  async function convertToBnb() {
+    setProgressLabel(convertToBnbMsg)
+    setProgressValue(30)
+    setShowProgress(true)
+    await sleep(1000)
+    fetchDust(binanceApiKey, binanceSecretKey).then(async (dustResult) => {
+      const dustAssets = []
+      for (const dust of dustResult.details) {
+        dustAssets.push(dust.asset)
+      }
+      setProgressValue(50)
+      setProgressLabel(`Converting ${dustAssets.join(', ')}`)
+      await sleep(2000)
+      executeDust(binanceApiKey,
+                  binanceSecretKey,
+                  dustAssets).then(async (result) => {
+                    console.log({result})
+                    setProgressValue(100)
+                    setProgressLabel('Done')
+                    await sleep(1000)
+                  })
+      setShowProgress(false)
+      setProgressLabel('')
+    })
+    await useCurrentPortfolio(binanceApiKey, binanceSecretKey)
   }
 
   async function useCurrentPortfolio(binanceApiKey:string, binanceSecretKey:string) {
     try {
-      const data = await fetchUserAsset(binanceApiKey, binanceSecretKey)
-      const latestReport = await getLatestReport()
-      // Removing extremely small asset holdings
-      const cleanedData = []
-      for (let asset of data) {
-        if (parseFloat(asset.btcValuation) == 0)
-          continue
-
-        if (latestReport.hasOwnProperty(asset.asset)) {
-          asset.expired = latestReport[asset.asset].expired
-        }
-        else
-          asset.expired = true // To force a reallocation; something went wrong somehow
-        cleanedData.push(asset)
-      }
-
-      setPortfolioData(cleanedData);
-      setCurrentPortfolioData(cleanedData);
+      setProgressLabel(fetchCurrentPortfolioMsg)
+      setProgressValue(15)
+      setShowProgress(true)
+      const data = await updateCurrentPortfolio(binanceApiKey, binanceSecretKey)
+      setPortfolioData(data)
       setPortfolioType('current-portfolio')
       setReportType('none')
+      const actions = {
+        convertToBnb: async () => {
+          await convertToBnb()
+        }
+      }
+      setPortfolioActions(actions)
+      setProgressValue(100)
+      setShowProgress(false)
     } catch (error) {
       setPortfolioData(null);
     }
@@ -538,8 +525,11 @@ export default function Dashboard() {
         setPortfolioType('none')
         setReportType('none')
         setSettingsType('none')
+        // setPortfolioDataHandler(null)
         return;
       }
+
+      // setPortfolioDataHandler(handleToExecuteData)
 
       /* const readyForReallocation = []
        * for (const asset of currentPortfolioData)
@@ -583,11 +573,156 @@ export default function Dashboard() {
     }
   }
 
+  async function calculateRiskManagement(currentPortfolio) {
+    setProgressLabel(loadingPortfolioReportMsg)
+    setProgressValue(0)
+    setShowProgress(true)
+    const rows = await getReports(10)
+    const data = JSON.parse(rows[0].report) // We always get 1.
+
+    const symbols = []
+    const transactions = []
+    for (const asset of currentPortfolio) {
+      const assetName = asset.asset
+      let assetAmount = parseFloat(asset.free)
+
+      for (const report of rows) {
+        const timestamp = report.id
+        const reportObj = JSON.parse(report.report)
+        const toAmounts = reportObj.toAmounts
+        let found = false
+
+        if (toAmounts.hasOwnProperty(assetName)) {
+          for (const transaction of reportObj.ordersToExecute) {
+            const to = transaction.to.slice(0, -3).toUpperCase()
+            if (assetName == to) {
+              const from = transaction.from.slice(0, -3).toUpperCase()
+              const timeRemaining = (timestamp + transaction.horizon * 1000) - new Date().getTime()
+              const expired = (timestamp + transaction.horizon * 1000) < new Date().getTime()
+
+              transaction['from'] = from
+              transaction['to'] = to
+              transaction['timestamp'] = timestamp
+              transaction['startingPrice'] = reportObj.startingPrices[`${assetName}USDT`]
+              transaction['toAmount'] = assetAmount
+              transaction['timeRemaining'] = timeRemaining
+              transaction['expired'] = expired
+
+              symbols.push(`${to}USDT`)
+              transactions.push(transaction)
+              found = true
+              break
+            }
+          }
+        }
+        if (found)
+          break
+      }
+    }
+
+    const reportsData = {
+      transactions,
+      symbols,
+      // timestamp: data.timestamp,
+      btcValueBefore: data.valuationsBefore.btcValue,
+      btcValueAfter: data.valuationsAfter.btcValue,
+      usdtValueBefore: data.valuationsBefore.usdtValue,
+      usdtValueAfter: data.valuationsAfter.usdtValue,
+      // startingPrices: data.startingPrices,
+      // toAmounts: data.toAmounts
+    }
+    /* for (const transaction of transactions) {
+     *   const from = transaction.from.slice(0, -3).toUpperCase()
+     *   const to = transaction.to.slice(0, -3).toUpperCase()
+     *   // const symbol = `${from}${to}`
+     *   const report = {
+     *     timestamp: transaction.timestamp,
+     *     from,
+     *     to,
+     *     // symbol,
+     *     // startingPrice: data.startingPrices[`${to}USDT`],
+     *     startingPrice: transaction.startingPrice,
+     *     fromAmount: transaction.amount,
+     *     toAmount: transaction.toAmount,
+     *     takeProfit: transaction.takeProfit,
+     *     stopLoss: transaction.stopLoss,
+     *     horizon: transaction.horizon,
+     *     timeRemaining: (transaction.timestamp + transaction.horizon * 1000) - new Date().getTime(),
+     *     expired: (transaction.timestamp + transaction.horizon * 1000) < new Date().getTime()
+     *   }
+     *   // reportsData.symbols.push(symbol)
+     *   reportsData.symbols.push(`${to}USDT`)
+     *   reportsData.transactions.push(report)
+     * } */
+
+    setProgressValue(40)
+
+    // const symbols = [...new Set(reportsData.symbols)]
+    // console.log({symbols})
+    const prices = await fetchAssetPrices(symbols)
+
+    const _tableData = {}
+    for (const transaction of reportsData.transactions) {
+      const symbol = `${transaction.to}USDT`
+      const startPrice = parseFloat(transaction.startingPrice)
+      const tp = transaction.takeProfit
+      const sl = transaction.stopLoss
+      const price = parseFloat(prices[symbol])
+      const priceDiff = price - startPrice
+      // const toAmount = reportsData.toAmounts[transaction.to]
+      const toAmount = transaction.toAmount
+      const tpDistance = tp > 0 ? ((startPrice + tp) - price) * toAmount : (price - (startPrice + tp)) * toAmount
+      const slDistance = tp > 0 ? (price - (startPrice + sl)) * toAmount : ((startPrice + sl) - price) * toAmount
+      const upnl = (tp > 0 ? priceDiff : priceDiff * -1) * toAmount
+      const timeRemaining = transaction.timeRemaining
+      const expired = transaction.expired || tpDistance < 0 || slDistance < 0
+      /* const timeRemaining = (reportsData.timestamp + transaction.horizon * 1000) - new Date().getTime()
+       * const expired = (reportsData.timestamp + transaction.horizon * 1000) < new Date().getTime() */
+
+      if (!_tableData.hasOwnProperty(transaction.to))
+        _tableData[transaction.to] = {
+          asset: transaction.to,
+          currentPrice: price,
+          tpDistance,
+          slDistance,
+          upnl,
+          timeRemaining,
+          expired
+        }
+      else
+        _tableData[transaction.to].upnl += upnl
+    }
+
+    setProgressValue(90)
+
+    let totalUnPnL = 0.0
+    for (const key in _tableData) {
+      totalUnPnL += _tableData[key].upnl
+    }
+    console.log({totalUnPnL}, reportsData.usdtValueAfter, reportsData.usdtValueAfter + totalUnPnL)
+    setProgressValue(100)
+    setShowProgress(false)
+    return _tableData
+  }
+
   async function usePortfolioReport() {
     try {
+      const data = await calculateRiskManagement(currentPortfolioData)
+      setPortfolioData(Object.values(data))
+
       setSettingsType('none')
-      setReportType('portfolio-report')
+      setPortfolioType('portfolio-report')
+    } catch (error) {
+      setSettingsType('none')
       setPortfolioType('none')
+    }
+  }
+
+  async function useEarningsReport() {
+    try {
+      setSettingsType('none')
+      setReportType('none')
+      setPortfolioType('earnings-report')
     } catch (error) {
       setSettingsType('none')
       setReportType('none')
@@ -595,11 +730,23 @@ export default function Dashboard() {
     }
   }
 
-  async function handleData(data) {
+  async function handleRecommendedData(data) {
+    let totalAllocation = 0.0
+    for (const asset of data)
+      totalAllocation += asset.allocation
+    for (const idx in data)
+      data[idx].allocation = data[idx].allocation * 100 / totalAllocation
+    setPortfolioData(data)
+    setRecommendedPortfolioData(data)
+    setPortfolioType('recommended-portfolio')
+    setAlertMessage('')
+    setShowAlert(false)
+  }
+
+  async function handleToExecuteData(data) {
     setPortfolioData(data)
     setOrdersToExecute(data)
     setPortfolioType('to-execute-portfolio')
-    setReportType('none')
     setAlertMessage('')
     setShowAlert(false)
     const actions = {
@@ -634,6 +781,10 @@ export default function Dashboard() {
       await useCurrentPortfolio(binanceApiKey, binanceSecretKey)
     if (item == 'to-execute-portfolio')
       await useToExecutePortfolio()
+    if (item == 'earnings-report')
+      await useEarningsReport()
+    if (item == 'portfolio-report')
+      await usePortfolioReport()
   };
 
   const handleReportsMenuItemClick = async (item) => {
@@ -703,7 +854,7 @@ export default function Dashboard() {
   }
 
   function useSaveValuationsInterval(binanceApiKey:string, binanceSecretKey:string) {
-    saveValuationsInterval(binanceApiKey, binanceSecretKey, 500)
+    saveValuationsInterval(binanceApiKey, binanceSecretKey, 90)
   }
 
   async function handleApiKeys(apiKeys) {
@@ -713,6 +864,9 @@ export default function Dashboard() {
   }
 
   async function useReadApiKeys() {
+    setProgressLabel(readingAPIKeysMsg)
+    setProgressValue(0)
+    setShowProgress(true)
     const apiKeys = await readApiKeys()
     handleApiKeys(apiKeys)
     // Updating shown balance
@@ -720,28 +874,25 @@ export default function Dashboard() {
         apiKeys.binanceApiKey !== undefined &&
         apiKeys.binanceSecretKey !== undefined) {
 
+      // Show Total Assets Value
       /* useTotalAssetsValue(apiKeys.binanceApiKey, apiKeys.binanceSecretKey);
        * const { snapshotVos } = await fetchAccountSnapshot(apiKeys.binanceApiKey, apiKeys.binanceSecretKey)
        * setChartData(snapshotVos) */
 
+      setProgressLabel(fetchCurrentPortfolioMsg)
+      setProgressValue(30)
+      // Fetch current portfolio when the app loads
+      // await updateCurrentPortfolio(apiKeys.binanceApiKey, apiKeys.binanceSecretKey)
+      setProgressLabel(fetchRecommendedPortfolioMsg)
+      setProgressValue(70)
       await useRecommendedPortfolio(apiKeys.overmindApiKey)
       if (!runningValidations) {
         useSaveValuationsInterval(apiKeys.binanceApiKey, apiKeys.binanceSecretKey)
         setRunningValidations(true)
       }
 
-      /* fetchDust(apiKeys.binanceApiKey, apiKeys.binanceSecretKey).then((dustResult) => {
-       *   const dustAssets = []
-       *   for (const dust of dustResult.details) {
-       *     dustAssets.push(dust.asset)
-       *   }
-       *   console.log({dustAssets})
-       *   executeDust(apiKeys.binanceApiKey,
-       *               apiKeys.binanceSecretKey,
-       *               dustAssets).then((result) => {
-       *                 console.log({result})
-       *               })
-       * }) */
+      setProgressValue(100)
+      setShowProgress(false)
     }
   }
 
@@ -830,7 +981,7 @@ export default function Dashboard() {
           <List component="nav">
             {mainListItems(handlePortfolioMenuItemClick)}
             <Divider sx={{ my: 1 }} />
-            {secondaryListItems(handleReportsMenuItemClick)}
+            {secondaryListItems(handlePortfolioMenuItemClick)}
             <Divider sx={{ my: 1 }} />
             {configListItems(handleConfigurationMenuItemClick)}
           </List>
@@ -872,7 +1023,7 @@ export default function Dashboard() {
                     height: 240,
                   }}
                 >
-                  <Chart data={chartData} />
+                  <News overmindApiKey={overmindApiKey} />
                 </Paper>
               </Grid>
               <Grid item xs={12} md={4} lg={3}>
@@ -883,13 +1034,9 @@ export default function Dashboard() {
                     flexDirection: 'column',
                     height: 240,
                     textAlign: 'center',
-                    justifyContent: 'center',
-                    alignItems: 'center',
                   }}
                 >
-                  <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
-                    <Balance usdtBalance={usdtBalance} btcBalance={btcBalance} />
-                  </Paper>
+                  <Balance usdtBalance={usdtBalance} btcBalance={btcBalance} />
                 </Paper>
               </Grid>
               <Grid item xs={12}>
@@ -899,7 +1046,7 @@ export default function Dashboard() {
                                type={portfolioType}
                                actions={portfolioActions}
                                alerts={portfolioAlerts}
-                               dataHandler={handleData}
+                               dataHandler={portfolioType == 'recommended-portfolio' ? handleRecommendedData : handleToExecuteData}
                                validatedPortfolio={validatedPortfolio}
                                simulatedTradesHandler={async (asset:string) => {
                                  return await handleSimulatedTrades(asset)
@@ -921,13 +1068,13 @@ export default function Dashboard() {
                     />
                   </Paper>
                 )}
-                {(reportType != 'none') && (
-                  <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
+                {/*(portfolioType != 'none') && (
+                    <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
                     <Report data={reportData}
-                            type={reportType}
+                    type={reportType}
                     />
-                  </Paper>
-                )}
+                    </Paper>
+                    )*/}
               </Grid>
             </Grid>
             <Copyright sx={{ pt: 4 }} />
