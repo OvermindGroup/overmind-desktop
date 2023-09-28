@@ -31,7 +31,7 @@ export async function initDb() {
     await db.execute(createValuationsTableQuery)
 }
 
-function sortPortfolio(portfolio, isDesc) {
+function sortPortfolio(portfolio, isDesc): { [key: string]: number } {
     // Convert the object to an array of key-value pairs
     const portfolioArray = Object.entries(portfolio);
 
@@ -45,24 +45,18 @@ function sortPortfolio(portfolio, isDesc) {
     return Object.fromEntries(portfolioArray);
 }
 
-function getBTCPercentages(currentPortfolio: { [key: string]: Array<number> }, reallocateOnlyExpired:bool, reallocateAmongAll:bool): { [key: string]: number } {
-    let percentages: { [key: string]: number } = {}
-    let sum = 0
-    for (const asset in currentPortfolio) {
-        if (reallocateAmongAll) {
-            if (reallocateOnlyExpired && !currentPortfolio[asset][2]) {
-                continue
-            }
-        }
-        sum += currentPortfolio[asset][1]
-    }
-    for (const asset in currentPortfolio) {
-        if (reallocateOnlyExpired && !currentPortfolio[asset][2])
-            continue
-        percentages[asset] = currentPortfolio[asset][1] / sum;
+function getBTCPercentages(currPortfolio: { [key: string]: Array<number> }): { [key: string]: number } {
+    const percentages: { [key: string]: number } = {}
+    // let sum = 0
+    // for (const asset in currPortfolio) {
+    //     sum += currPortfolio[asset][1]
+    // }
+    for (const asset in currPortfolio) {
+        // percentages[asset] = currPortfolio[asset][1] / sum;
+        percentages[asset] = parseFloat(currPortfolio[asset][3])
     }
 
-    return sortPortfolio(percentages)
+    return sortPortfolio(percentages, false)
 }
 
 async function truncateToDecimalPlaces(num, decimalPlaces) {
@@ -77,34 +71,41 @@ async function fmtAmount(fromAsset, amount) {
     // return parseFloat(amount.toFixed(8))
 }
 
-function parseCurrentPortfolio(currentPortfolio) {
+function parseCurrentPortfolio(currPortfolio) {
     const transformedPortfolio = {};
+    let totalBtcValuation = 0.0
 
-    for (const idx in currentPortfolio) {
-        const order = currentPortfolio[idx]
-        const upcaseAsset = order['asset']
-        let asset = order['asset'].toLowerCase() + 'usd'
-
-        let free = parseFloat(order['free'])
-        const btcValuation = parseFloat(order['btcValuation'])
-        const expired = order['expired']
-
-        transformedPortfolio[asset] = [free, btcValuation, expired];
+    for (const asset of currPortfolio) {
+        totalBtcValuation += parseFloat(asset.btcValuation)
     }
 
-    return transformedPortfolio;
+    for (const idx in currPortfolio) {
+        const order = currPortfolio[idx]
+        const asset = order['asset'].toLowerCase() + 'usd'
+        const free = parseFloat(order['free'])
+        const btcValuation = parseFloat(order['btcValuation'])
+        const expired = order['expired']
+        const allocation = totalBtcValuation !== 0 ? btcValuation / totalBtcValuation : 0.0
+
+        transformedPortfolio[asset] = [free, btcValuation, expired, allocation];
+    }
+
+    return transformedPortfolio
 }
 
-function balancePortfolios(targetPortfolio, currentPortfolio, reallocateOnlyExpired:bool, reallocateAmongAll:bool) {
-    let withdrawingPercs = getBTCPercentages(currentPortfolio, reallocateOnlyExpired, reallocateAmongAll)
+function balancePortfolios(targetPortfolio, currPortfolio) {
+    const withdrawingPercs = getBTCPercentages(currPortfolio)
     let newCurrent = {}
     let newTarget = {}
     for (const targetKey in targetPortfolio) {
-        if (currentPortfolio.hasOwnProperty(targetKey)) {
+        if (currPortfolio.hasOwnProperty(targetKey)) {
             if (withdrawingPercs[targetKey] > targetPortfolio[targetKey]) {
                 const newPerc = withdrawingPercs[targetKey] - targetPortfolio[targetKey]
-                newCurrent[targetKey] = [newPerc * currentPortfolio[targetKey][0] / withdrawingPercs[targetKey],
-                                         newPerc * currentPortfolio[targetKey][1] / withdrawingPercs[targetKey]]
+                newCurrent[targetKey] = [newPerc * currPortfolio[targetKey][0] / withdrawingPercs[targetKey],
+                                         newPerc * currPortfolio[targetKey][1] / withdrawingPercs[targetKey],
+                                         currPortfolio[targetKey][2],
+                                         newPerc * currPortfolio[targetKey][3] / withdrawingPercs[targetKey]
+                                        ]
             }
             if (withdrawingPercs[targetKey] < targetPortfolio[targetKey]) {
                 const newPerc = targetPortfolio[targetKey] - withdrawingPercs[targetKey]
@@ -117,9 +118,9 @@ function balancePortfolios(targetPortfolio, currentPortfolio, reallocateOnlyExpi
         }
     }
     // Adding rest of values. Not present in both. Only newCurrent left.
-    for (const currentKey in currentPortfolio) {
+    for (const currentKey in currPortfolio) {
         if (!targetPortfolio.hasOwnProperty(currentKey)) {
-            newCurrent[currentKey] = currentPortfolio[currentKey]
+            newCurrent[currentKey] = currPortfolio[currentKey]
         }
     }
 
@@ -129,7 +130,7 @@ function balancePortfolios(targetPortfolio, currentPortfolio, reallocateOnlyExpi
 var singleton = false
 export async function saveValuation(valuation) {
     try {
-        if (singleton)
+        if (singleton || valuation.usdtValue == null)
             return
         singleton = true
         const timestamp = new Date().getTime()
@@ -240,20 +241,10 @@ export async function readApiKeys() {
     }
 }
 
-export async function switchPortfolio(targetPortfolio, currentPortfolio, reallocateOnlyExpired:bool, reallocateAmongAll:bool) {
-    let forBTCPercentages = currentPortfolio
-
-    const expiredPortfolio = []
-    if (reallocateOnlyExpired) {
-        for (const asset of currentPortfolio)
-            if (asset.expired)
-                expiredPortfolio.push(asset)
-        currentPortfolio = expiredPortfolio
-    }
+export async function switchPortfolio(targetPortfolio, currPortfolio, reallocateOnlyExpired:bool, reallocateAmongAll:bool) {
+    currPortfolio = parseCurrentPortfolio(currPortfolio)
 
     let transactions = [];
-    currentPortfolio = parseCurrentPortfolio(currentPortfolio)
-    forBTCPercentages = parseCurrentPortfolio(forBTCPercentages)
 
     let transformedTargetPortfolio = {}
     let riskManagement = {}
@@ -263,50 +254,78 @@ export async function switchPortfolio(targetPortfolio, currentPortfolio, realloc
         riskManagement[order['instrument']] = order
     }
 
-    const forBTCResult = balancePortfolios(transformedTargetPortfolio, forBTCPercentages, false, true)
-    forBTCPercentages = forBTCResult[1]
-    const result = balancePortfolios(transformedTargetPortfolio, currentPortfolio, reallocateOnlyExpired, reallocateAmongAll)
+    const fullCurrPortfolio = currPortfolio
+    let fullWithdrawingPercs = getBTCPercentages(fullCurrPortfolio)
+
+    const result = balancePortfolios(transformedTargetPortfolio, currPortfolio)
     transformedTargetPortfolio = result[0]
-    currentPortfolio = result[1]
-    // const result = balancePortfolios(transformedTargetPortfolio, currentPortfolio, reallocateOnlyExpired, reallocateAmongAll)
-    // transformedTargetPortfolio = result[0]
-    // currentPortfolio = result[1]
+    currPortfolio = result[1]
 
     targetPortfolio = sortPortfolio(transformedTargetPortfolio, true)
 
+    let withdrawingPercs = getBTCPercentages(currPortfolio)
 
-    let withdrawingPercs = getBTCPercentages(forBTCPercentages, reallocateOnlyExpired, reallocateAmongAll)
-    let totalWithdrawingPercs = getBTCPercentages(forBTCPercentages, false, reallocateAmongAll)
-    const currentPortfolioConst = JSON.parse(JSON.stringify(currentPortfolio));
+    let totalAllocation = 0.0
+    let comparison = 0.0
+    if (reallocateAmongAll) {
+        const newWithdrawingPercs = {}
+        let totalTargetAllocation = 0.0
+        for (const assetName in targetPortfolio) {
+            totalTargetAllocation += targetPortfolio[assetName]
+        }
+        for (const assetName in targetPortfolio) {
+            targetPortfolio[assetName] = targetPortfolio[assetName] / totalTargetAllocation
+        }
+
+        for (const assetName in withdrawingPercs) {
+            comparison += withdrawingPercs[assetName]
+            if (reallocateOnlyExpired && !currPortfolio[assetName][2])
+                continue
+            totalAllocation += withdrawingPercs[assetName]
+        }
+        for (const assetName in withdrawingPercs) {
+            if (reallocateOnlyExpired && !currPortfolio[assetName][2])
+                continue
+            newWithdrawingPercs[assetName] = withdrawingPercs[assetName] / totalAllocation
+        }
+        withdrawingPercs = newWithdrawingPercs
+    }
 
     for (const depositingAsset in targetPortfolio) {
         let toDeposit = targetPortfolio[depositingAsset]
         for (const withdrawingAsset in withdrawingPercs) {
-            const toWithdraw =
-                withdrawingPercs[withdrawingAsset]
-            const remainingWithdraw = currentPortfolio[withdrawingAsset][0]
+            if (reallocateOnlyExpired && !currPortfolio[withdrawingAsset][2])
+                continue
+
+            const toWithdraw = withdrawingPercs[withdrawingAsset]
+            const remainingWithdraw = currPortfolio[withdrawingAsset][0]
             if (toWithdraw <= 0 && remainingWithdraw <= 0)
                 continue
 
-            const withdrawingTotalAmount = currentPortfolio[withdrawingAsset][0]
+            const withdrawingTotalAmount = currPortfolio[withdrawingAsset][0]
             let amount = 0.0
             let allocation = 0.0
 
             if (Math.abs(toWithdraw) >= Math.abs(toDeposit)) {
                 amount = toDeposit * withdrawingTotalAmount / toWithdraw
                 withdrawingPercs[withdrawingAsset] -= Math.abs(toDeposit)
-                allocation = totalWithdrawingPercs[withdrawingAsset] * (amount / currentPortfolioConst[withdrawingAsset][0])
-                // allocation = Math.abs(toDeposit)
+                allocation = Math.abs(toDeposit)
+                if (reallocateAmongAll) {
+                    allocation = allocation * totalAllocation
+                }
+
                 toDeposit = 0
             } else {
                 amount = Math.sign(toDeposit) * withdrawingTotalAmount // We withdraw all
-                // allocation = toWithdraw
-                allocation = totalWithdrawingPercs[withdrawingAsset] * (amount / currentPortfolioConst[withdrawingAsset][0])
+
+                allocation = toWithdraw
+                if (reallocateAmongAll) {
+                    allocation = allocation * totalAllocation
+                }
                 toDeposit = Math.sign(toDeposit) * (Math.abs(toDeposit) - toWithdraw)
                 withdrawingPercs[withdrawingAsset] = 0
             }
-            currentPortfolio[withdrawingAsset][0] -= Math.abs(amount)
-            // amount = parseFloat(amount.toFixed(8))
+            currPortfolio[withdrawingAsset][0] -= Math.abs(amount)
             amount = await fmtAmount(withdrawingAsset, amount)
             transactions.push({from: withdrawingAsset,
                                to: depositingAsset,
@@ -324,6 +343,33 @@ export async function switchPortfolio(targetPortfolio, currentPortfolio, realloc
     }
 
     return transactions;
+}
+
+export async function fetchNews(overmindApiKey:string) {
+    try {
+        const apiUrl = "http://localhost:3000/api/v1/info/news";
+
+        const requestBody = {
+            overmindApiKey: overmindApiKey
+        };
+
+        const response = await fetch(apiUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(requestBody),
+        });
+
+        if (!response.ok) {
+            throw new Error("Failed to fetch data.");
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.log(error)
+        return []
+    }
 }
 
 export async function fetchRecommendedPortfolio(overmindApiKey:string) {
