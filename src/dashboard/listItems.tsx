@@ -49,14 +49,14 @@ export const secondaryListItems = (handleClick) => (
       <ListItemIcon>
         <AssignmentIcon />
       </ListItemIcon>
-      <ListItemText primary="Earnings" />
+      <ListItemText primary="Profit & Loss" />
     </ListItemButton>
     <ListItemButton onClick={() => handleClick('portfolio-report')}
                     className="portfolio-report-menu-item">
       <ListItemIcon>
         <AssignmentIcon />
       </ListItemIcon>
-      <ListItemText primary="Investment Portfolio" />
+      <ListItemText primary="Risk Management" />
     </ListItemButton>
   </React.Fragment>
 );
