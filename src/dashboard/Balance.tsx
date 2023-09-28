@@ -1,22 +1,24 @@
 import * as React from 'react';
-import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
-import Title from './Title';
+import { styled } from '@mui/material/styles';
+import Grid from '@mui/material/Grid'
 
-function preventDefault(event: React.MouseEvent) {
-  event.preventDefault();
-}
+const Title = styled(Typography)(({ theme }) => ({
+  marginBottom: theme.spacing(2),
+  borderBottom: `1px solid ${theme.palette.divider}`,
+  paddingBottom: theme.spacing(1),
+}));
 
 function getDateTime() {
   const currentDate = new Date();
-  const day = currentDate.getDate(); // Day of the month (1-31)
-  const month = currentDate.getMonth(); // Month (0-11, where 0 is January and 11 is December)
+  const day = String(currentDate.getDate()).padStart(2, '0'); // Day of the month (01-31)
+  const month = String(currentDate.getMonth() + 1).padStart(2, '0'); // Month (01-12)
   const year = currentDate.getFullYear(); // Four-digit year
-  const hours = currentDate.getHours(); // Hour (0-23)
-  const minutes = currentDate.getMinutes(); // Minutes (0-59)
-  const seconds = currentDate.getSeconds(); // Seconds (0-59)
+  const hours = String(currentDate.getHours()).padStart(2, '0'); // Hour (00-23)
+  const minutes = String(currentDate.getMinutes()).padStart(2, '0'); // Minutes (00-59)
+  const seconds = String(currentDate.getSeconds()).padStart(2, '0'); // Seconds (00-59)
 
-  return `${day}/${month + 1}/${year}, ${hours}:${minutes}:${seconds}`
+  return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
 }
 
 export default function Balance({ usdtBalance, btcBalance }) {
@@ -28,16 +30,24 @@ export default function Balance({ usdtBalance, btcBalance }) {
 
   return (
     <React.Fragment>
-      <Title>Total Assets Value</Title>
-      <Typography component="p" variant="h5">
-        {btcBalance.toFixed(8)} BTC
-      </Typography>
-      <Typography component="p" variant="h6">
-        ~${usdtBalance.toFixed(2)} USDT
-      </Typography>
-      <Typography color="text.secondary" sx={{ flex: 1 }}>
-        {balanceDateTime}
-      </Typography>
+      <Title variant="h5">Total Assets Value</Title>
+      <Grid container direction="column" alignItems="center" justifyContent="center" height="100%">
+        <Grid item>
+          <Typography component="p" variant="h5">
+            {btcBalance.toFixed(8)} BTC
+          </Typography>
+        </Grid>
+        <Grid item>
+          <Typography component="p" variant="h6">
+            ~${usdtBalance.toFixed(2)} USDT
+          </Typography>
+        </Grid>
+        <Grid item>
+          <Typography color="text.secondary">
+            {balanceDateTime}
+          </Typography>
+        </Grid>
+      </Grid>
     </React.Fragment>
   );
 }
