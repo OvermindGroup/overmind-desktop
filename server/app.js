@@ -84,6 +84,25 @@ serverApp.post('/api/v1/portfolio/train-bullish', async (req, res) => {
   }
 });
 
+serverApp.post('/api/v1/info/news', async (req, res) => {
+  try {
+    const url = "http://localhost:1989/v1/info/news";
+    const { overmindApiKey } = req.body;
+
+    const token = `Bearer ${overmindApiKey}`;
+    const headers = {
+      Authorization: token,
+    };
+
+    const response = await axios.get(url, { headers });
+
+    res.json(response.data);
+  } catch (error) {
+    console.error("Error fetching news:", error);
+    res.status(500).json({ error: 'An error occurred' });
+  }
+});
+
 serverApp.post('/api/v1/results/simulated-trades', async (req, res) => {
   try {
     const url = "http://localhost:1989/v1/results/simulated-trades";
