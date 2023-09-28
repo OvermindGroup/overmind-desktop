@@ -63,7 +63,7 @@ const getTableMetadata = (type:string ) => {
     }
     if (type == 'portfolio-report') {
         columns = reportColumns
-        title = 'Portfolio Report'
+        title = 'Risk Management'
     }
     return { columns, title }
 }
