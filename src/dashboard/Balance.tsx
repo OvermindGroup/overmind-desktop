@@ -22,7 +22,7 @@ function getDateTime() {
 }
 
 export default function Balance({ usdtBalance, btcBalance }) {
-  const [balanceDateTime, setBalanceDateTime] = React.useState([]);
+  const [balanceDateTime, setBalanceDateTime] = React.useState<any>([]);
 
   React.useEffect(() => {
     setBalanceDateTime(getDateTime())

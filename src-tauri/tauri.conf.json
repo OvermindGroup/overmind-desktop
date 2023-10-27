@@ -7,8 +7,8 @@
     "withGlobalTauri": false
   },
   "package": {
-    "productName": "overmind-desktop",
-    "version": "0.0.1"
+    "productName": "Overmind",
+    "version": "1.1.0"
   },
   "tauri": {
     "allowlist": {
@@ -60,7 +60,7 @@
       {
       "fullscreen": false,
       "resizable": true,
-      "title": "Overmind Desktop",
+      "title": "Overmind",
       "maximized": true,
       "center": true,
       "decorations": false

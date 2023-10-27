@@ -1,13 +1,12 @@
-import React from "react";
 import { useTable } from "react-table";
 
 // Custom formatting functions
-export const formatPercentage = (cellValue) => {
+export const formatPercentage = (cellValue:any) => {
     // Format the cell value
     return `${parseFloat(cellValue).toFixed(2)}%`;
 };
 
-export const formatTwoDecimals = (cellValue) => {
+export const formatTwoDecimals = (cellValue:any) => {
     // Format the cell value
     return parseFloat(cellValue).toFixed(2);
 };

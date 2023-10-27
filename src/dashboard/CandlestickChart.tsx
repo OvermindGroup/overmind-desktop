@@ -9,7 +9,7 @@ import Chart from 'react-apexcharts'
 import { PrimeReactProvider } from 'primereact/api'
 import { InputNumber } from 'primereact/inputnumber'
 
-function calcSteps(start, finish, steps, isRounded:Boolean) {
+function calcSteps(start:any, finish:any, steps:any, isRounded:Boolean) {
     if (steps <= 0) {
         return [start];
     }
@@ -289,7 +289,7 @@ const CandlestickChart = (props) => {
                 type: 'datetime',
                 labels: {
                     rotate: -10,
-                    formatter: (value, timestamp, opts) => {
+                    formatter: (value:any) => {
                         if (value !== undefined)
                             return formatTimestamp(value)
                     }
@@ -345,21 +345,21 @@ const CandlestickChart = (props) => {
         setSliderMarks(marks)
     }, [tradeIndexMax]);
 
-    const handleSliderChange = (event: Event, newValue: number | number[]) => {
+    const handleSliderChange = (_: Event, newValue: number | number[]) => {
         setTradeIndex(newValue as number);
     };
 
-    const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        setTradeIndex(event.target.value === '' ? 0 : Number(event.target.value));
-    };
+    /* const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+     *     setTradeIndex(event.target.value === '' ? 0 : Number(event.target.value));
+     * };
 
-    const handleBlur = () => {
-        if (tradeIndex < 1) {
-            setTradeIndex(1);
-        } else if (tradeIndex > tradeIndexMax) {
-            setTradeIndex(tradeIndexMax);
-        }
-    };
+     * const handleBlur = () => {
+     *     if (tradeIndex < 1) {
+     *         setTradeIndex(1);
+     *     } else if (tradeIndex > tradeIndexMax) {
+     *         setTradeIndex(tradeIndexMax);
+     *     }
+     * }; */
 
     return (
         <Fragment>

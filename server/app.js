@@ -172,6 +172,31 @@ serverApp.post('/api/v1/portfolio/refresh', async (req, res) => {
   }
 });
 
+serverApp.post('/api/v1/portfolio/refresh-model', async (req, res) => {
+  try {
+    const url = "http://localhost:1989/v1/portfolio/refresh-model";
+    const { overmindApiKey, instrument } = req.body;
+
+    const token = `Bearer ${overmindApiKey}`;
+    const headers = {
+      Authorization: token,
+    };
+
+    const params = {
+      instrument
+    }
+
+    const fullUrl = `${url}?${new URLSearchParams(params)}`;
+
+    const response = await axios.get(fullUrl, { headers });
+
+    res.json(response.data);
+  } catch (error) {
+    console.error("Error fetching portfolio:", error);
+    res.status(500).json({ error: 'An error occurred' });
+  }
+});
+
 serverApp.post('/api/v1/portfolio/bullish', async (req, res) => {
   try {
     const url = "http://localhost:1989/v1/results/portfolio-bullish";

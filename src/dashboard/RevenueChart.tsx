@@ -16,7 +16,7 @@ function formatTimestamp(timestamp:number) {
     return formattedTime;
 }
 
-const RevenueChart = (props) => {
+const RevenueChart = (props:any) => {
     const [series, setSeries] = useState([]);
     const [options, setOptions] = useState({});
 
@@ -77,7 +77,7 @@ const RevenueChart = (props) => {
                 type: 'datetime',
                 labels: {
                     rotate: -10,
-                    formatter: (value, timestamp, opts) => {
+                    formatter: (value:any) => {
                         if (value !== undefined)
                             return formatTimestamp(value)
                     }

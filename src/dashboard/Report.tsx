@@ -54,7 +54,7 @@ const Title = styled(Typography)(({ theme }) => ({
     paddingBottom: theme.spacing(1),
 }));
 
-const getTableMetadata = (type:string ) => {
+const getTableMetadata = (type:string) => {
     let columns = []
     let title = ''
     if (type == 'earnings-report') {
@@ -68,23 +68,23 @@ const getTableMetadata = (type:string ) => {
     return { columns, title }
 }
 
-const formatPercentage = (cellValue) => {
+const formatPercentage = (cellValue:any) => {
     return `${parseFloat(cellValue).toFixed(2)}%`;
 };
 
-const formatTwoDecimals = (cellValue) => {
+const formatTwoDecimals = (cellValue:any) => {
     return parseFloat(cellValue).toFixed(2);
 };
 
-const formatUSDT = (cellValue) => {
+const formatUSDT = (cellValue:any) => {
     return `$${parseFloat(cellValue).toFixed(4)} USDT`;
 };
 
-const formatBoolean = (cellValue) => {
+const formatBoolean = (cellValue:any) => {
     return cellValue ? 'Yes' : 'No';
 };
 
-function formatSeconds(seconds) {
+function formatSeconds(seconds:any) {
     seconds = seconds / 1000
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -96,15 +96,15 @@ function formatSeconds(seconds) {
     return formattedTime;
 }
 
-const formatAsset = (cellValue) => {
+const formatAsset = (cellValue:any) => {
     if (cellValue.length > 5)
         return cellValue.slice(0, -3).toUpperCase();
     return cellValue
 };
 
-function Row(props) {
+function Row(props:any) {
 
-    const formatCellValue = (column, cell) => {
+    const formatCellValue = (column:any, cell:any) => {
         if (column.format === "percentage") {
             return formatPercentage(cell.value);
         } else if (column.format === "twoDecimals") {
@@ -126,7 +126,7 @@ function Row(props) {
     return (
         <Fragment>
             <StyledTableRow {...props.data.getRowProps()}>
-                {props.data.cells.map((cell) => {
+                {props.data.cells.map((cell:any) => {
                     return (
                         <StyledTableCell align="center" {...cell.getCellProps()}>
                             {cell.column.Cell ? formatCellValue(cell.column, cell) : cell.render("Cell")}
@@ -138,9 +138,9 @@ function Row(props) {
     )
 }
 
-export default function Report(props) {
-    const [tableData, setTableData] = useState([]);
-    const [reportsData, setReportsData] = useState([]);
+export default function Report(props:any) {
+    const [tableData, setTableData] = useState<any>([]);
+    const [reportsData, setReportsData] = useState<any>([]);
     const {columns, title} = getTableMetadata(props.type)
     const [tableReady, setTableReady] = useState(false)
     const [refresh, setRefresh] = useState(false)
@@ -157,7 +157,7 @@ export default function Report(props) {
         getReports(1).then((rows) => {
             const data = JSON.parse(rows[0].report) // We always get 1.
 
-            const _reports = {
+            const _reports:any = {
                 transactions: [],
                 symbols: [],
                 timestamp: data.timestamp,
@@ -262,7 +262,7 @@ export default function Report(props) {
                             ))}
                         </TableHead>
                         <TableBody {...getTableBodyProps()}>
-                            {rows.map((row, index) => {
+                            {rows.map((row:any) => {
                                 prepareRow(row);
                                 return (
                                     <Row data={row}

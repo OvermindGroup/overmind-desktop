@@ -37,7 +37,6 @@ import CandlestickChart from './CandlestickChart';
 import RevenueChart from './RevenueChart';
 import Earnings from './Earnings';
 
-import { getReports, fetchAssetPrices } from '../dataHelpers'
 import './styles.css'
 
 const earningsColumns = [
@@ -80,29 +79,29 @@ const executePortfolioColumns = [
     { Header: "Remove Order", format: "removeOrder" }
 ];
 
-const formatPercentage = (cellValue) => {
+const formatPercentage = (cellValue:any) => {
     return `${parseFloat(cellValue).toFixed(2)}%`;
 };
 
-const formatTwoDecimals = (cellValue) => {
+const formatTwoDecimals = (cellValue:any) => {
     return parseFloat(cellValue).toFixed(2);
 };
 
-const formatAsset = (cellValue) => {
+const formatAsset = (cellValue:any) => {
     if (cellValue.length > 5)
         return cellValue.slice(0, -3).toUpperCase();
     return cellValue
 };
 
-const formatUSDT = (cellValue) => {
+const formatUSDT = (cellValue:any) => {
     return `$${parseFloat(cellValue).toFixed(4)} USDT`;
 };
 
-const formatBoolean = (cellValue) => {
+const formatBoolean = (cellValue:any) => {
     return cellValue ? 'Yes' : 'No';
 };
 
-function formatSeconds(seconds) {
+function formatSeconds(seconds:number) {
     seconds = seconds / 1000
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -245,7 +244,7 @@ function Row({ data, type, alertRows, removeRowAction, simulatedTradesHandler, a
         }
     }
 
-    const formatCellValue = (column, cell) => {
+    const formatCellValue = (column:any, cell:any) => {
         if (column.format === "percentage") {
             return formatPercentage(cell.value);
         } else if (column.format === "twoDecimals") {
@@ -253,7 +252,7 @@ function Row({ data, type, alertRows, removeRowAction, simulatedTradesHandler, a
         } else if (column.format === "asset") {
             return formatAsset(cell.value);
         } else if (column.format === "status") {
-            return formatStatus(cell.value);
+            return formatStatus();
         } else if (column.format === "removeOrder") {
             return formatRemoveOrder();
         } else if (column.format === "boolean") {
@@ -268,7 +267,7 @@ function Row({ data, type, alertRows, removeRowAction, simulatedTradesHandler, a
         }
     };
 
-    const formatStatus = (cellValue) => {
+    const formatStatus = () => {
         if (alertAction !== null) {
             return (
                 <Badge color="secondary" variant="dot" onClick={alertAction} className="badge-icon">
@@ -320,7 +319,7 @@ function Row({ data, type, alertRows, removeRowAction, simulatedTradesHandler, a
                         </IconButton>
                     </StyledTableCell>
                 )}
-                {data.cells.map((cell) => {
+                {data.cells.map((cell:any) => {
                     return (
                         !cell.column.collapsable ? (
                             <StyledTableCell align="center" {...cell.getCellProps()}>
@@ -357,7 +356,7 @@ function Row({ data, type, alertRows, removeRowAction, simulatedTradesHandler, a
                                     </TableHead>
                                     <TableBody>
                                         <TableRow>
-                                            {data.cells.map((cell) => (
+                                            {data.cells.map((cell:any) => (
                                                 cell.column.collapsable ? (
                                                     <TableCell align="center" {...cell.getCellProps()}>
                                                         {cell.column.Cell ? formatCellValue(cell.column, cell) : cell.render("Cell")}
@@ -376,7 +375,7 @@ function Row({ data, type, alertRows, removeRowAction, simulatedTradesHandler, a
 
                                 <CustomButton variant="contained" onClick={() => {
                                     simulatedTradesHandler(instrument)
-                                        .then((data) => {
+                                        .then((data:any) => {
                                             setSimulatedTradesData(data)
                                             setShowSimulatedTrades(true)
                                         })
@@ -454,11 +453,15 @@ export default function Portfolio({ data, type, actions, alerts, dataHandler, va
     const [training, setTraining] = useState(false);
     const [resetting, setResetting] = useState(false);
     const [validating, setValidating] = useState(false);
+    const [convertingBnb, setConvertingBnb] = useState(false);
+    const [convertingUsdt, setConvertingUsdt] = useState(false);
     const [executing, setExecuting] = useState(false);
 
     const [trainBtnMsg, setTrainBtnMsg] = useState("Improve Portfolio with AI");
     const [resetBtnMsg, setResetBtnMsg] = useState("Reset Portfolio");
     const [validatingBtnMsg, setValidatingBtnMsg] = useState("Validate Orders");
+    const [convertingBnbBtnMsg, setConvertingBnbBtnMsg] = useState("Converting to BNB");
+    const [convertingUsdtBtnMsg, setConvertingUsdtBtnMsg] = useState("Converting to USDT");
     const [executingBtnMsg, setExecutingBtnMsg] = useState("Execute Orders");
 
     const [alertTitle, setAlertTitle] = useState('');
@@ -473,16 +476,14 @@ export default function Portfolio({ data, type, actions, alerts, dataHandler, va
     const [tpPercentage, setTpPercentage] = useState(100);
     const [slPercentage, setSlPercentage] = useState(100);
 
-    const [tableData, setTableData] = useState([]);
-    const [reportsData, setReportsData] = useState([]);
-    // const {columns, title} = getTableMetadata(props.type)
-    const [tableReady, setTableReady] = useState(false)
     const [refresh, setRefresh] = useState(false)
 
     const [reallocateOnlyExpired, setReallocateOnlyExpired] = useState(true)
     const [reallocateAmongAll, setReallocateAmongAll] = useState(true)
     const onlyExpiredMsg = 'Reallocate only the assets that reached their take profit, stop loss or hold duration'
     const amongAllMsg = 'Reallocate among all recommended portfolio assets'
+    const convertToBnbMsg = 'Convert Small Balances to BNB'
+    const convertToUsdtMsg = 'Convert Everything to USDT'
     const [reallocateOnlyExpiredMsg, setReallocateOnlyExpiredMsg] = useState(onlyExpiredMsg)
     const [reallocateAmongAllMsg, setReallocateAmongAllMsg] = useState(amongAllMsg)
 
@@ -497,16 +498,17 @@ export default function Portfolio({ data, type, actions, alerts, dataHandler, va
     }
 
     const removeRowAction = (idx:number) => {
-        const newData = [...data];
+        const newData = [...data]
+        const assetName = data[idx].instrument
         newData.splice(idx, 1)
-        dataHandler(newData)
+        dataHandler(newData, assetName)
     }
 
-    const handleIterationsSliderChange = (event: Event, newValue: number | number[]) => {
+    const handleIterationsSliderChange = (_: Event, newValue: number | number[]) => {
         setIterations(newValue as number);
     };
 
-    const handleMaxTradeHorizonSliderChange = (event: Event, newValue: number | number[]) => {
+    const handleMaxTradeHorizonSliderChange = (_: Event, newValue: number | number[]) => {
         // const finalVal: number = Math.floor(newValue * 60 / 45)
         setMaxTradeHorizon(newValue as number);
     };
@@ -542,7 +544,7 @@ export default function Portfolio({ data, type, actions, alerts, dataHandler, va
                             if (alert.fromAsset = 'BNB') {
                                 msg = `${alert.fromAsset} amount must be between ${alert.quoteRange[0]} and ${alert.quoteRange[1]}. Do you want to remove this order?`
                                 action = () => () => {
-                                    const idx = dataIdx
+                                    const idx = parseInt(dataIdx)
                                     removeRowAction(idx)
                                 }
                             }
@@ -600,16 +602,31 @@ export default function Portfolio({ data, type, actions, alerts, dataHandler, va
                          <Paragraph>The table below shows all of your currently held assets and their allocations.</Paragraph>
                          <Title variant="h6">Convert small assets to BNB</Title>
                          <Paragraph>Binance does not allow you to convert small balances of assets to other symbols, with the exception of BNB. You can convert all of your small balances first, so you can later convert your BNB to other symbols.</Paragraph>
-                         <CustomButton variant="contained" disabled={validating || validatedPortfolio} onClick={() => {
-                             setValidating(true)
-                             setValidatingBtnMsg("Converting...")
+                         <CustomButton variant="contained" disabled={convertingBnb} onClick={() => {
+                             setConvertingBnb(true)
+                             setConvertingBnbBtnMsg("Converting to BNB...")
                              actions.convertToBnb().then(() => {
-                                 setValidatingBtnMsg("Convert Small Balances To BNB")
-                                 setValidating(false)
+                                 setConvertingBnbBtnMsg(convertToBnbMsg)
+                                 setConvertingBnb(false)
                              })
                          }}>
-                             Convert Small Balances To BNB
+                             {convertToBnbMsg}
                          </CustomButton>
+
+                         <Title variant="h6">Convert everything to USDT</Title>
+                         <Paragraph>In case you want to convert everything back to USDT, you can do so by pressing the button below.</Paragraph>
+                         <CustomButton variant="contained" disabled={convertingUsdt} onClick={() => {
+                             setConvertingUsdt(true)
+                             setConvertingUsdtBtnMsg("Converting to USDT...")
+                             actions.convertToUsdt().then(() => {
+                                 setConvertingUsdtBtnMsg(convertToUsdtMsg)
+                                 setConvertingUsdt(false)
+                             })
+                         }}>
+                             {convertToUsdtMsg}
+                         </CustomButton>
+
+
                          <Title variant="h6"></Title>
                      </React.Fragment>
                 )}
@@ -645,10 +662,11 @@ export default function Portfolio({ data, type, actions, alerts, dataHandler, va
                                          aria-labelledby="iterations-slider"
                                          valueLabelDisplay="auto"
                                          marks={[{value: 1, label: '1 iteration'},
-                                                 {value: 10, label: '10 iterations'}]}
+                                                 {value: 50, label: '50 iterations'},
+                                                 {value: 100, label: '100 iterations'}]}
                                          step={1}
                                          min={1}
-                                         max={10}
+                                         max={100}
                                      />
                                      <Typography id="take-profit-input" gutterBottom>
                                          Max Trade Horizon
@@ -793,18 +811,20 @@ export default function Portfolio({ data, type, actions, alerts, dataHandler, va
                 {type !== 'earnings-report' && (
                     <TableContainer component={Paper}>
                         {type == 'portfolio-report' && (
-                            <Button onClick={() => setRefresh(!refresh)}>Refresh</Button>
+                            <CustomButton variant="contained"onClick={() => setRefresh(!refresh)}>
+                                Refresh
+                            </CustomButton>
                         )}
                         <Table {...getTableProps()} aria-label="collapsible table">
                             <TableHead>
-                                {headerGroups.map((headerGroup) => (
+                                {headerGroups.map((headerGroup:any) => (
                                     <StyledTableRow {...headerGroup.getHeaderGroupProps()}>
                                         {type === 'recommended-portfolio' && (
                                             <StyledTableCell>
                                                 More Info
                                             </StyledTableCell>
                                         )}
-                                        {headerGroup.headers.map((column) => (
+                                        {headerGroup.headers.map((column:any) => (
                                             !column.collapsable ? (
                                                 <StyledTableCell align="center" {...column.getHeaderProps()}>
                                                     {column.render("Header")}
@@ -815,7 +835,7 @@ export default function Portfolio({ data, type, actions, alerts, dataHandler, va
                                 ))}
                             </TableHead>
                             <TableBody {...getTableBodyProps()}>
-                                {rows.map((row, index) => {
+                                {rows.map((row:any) => {
                                     prepareRow(row);
                                     return (
                                         <Row data={row}

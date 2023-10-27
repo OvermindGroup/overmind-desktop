@@ -44,11 +44,12 @@ import { fetchRecommendedPortfolio,
          fetchDust,
          fetchAssetPrices,
          fetchTrainPortfolio,
-         fetchAccountSnapshot,
+         // fetchAccountSnapshot,
          fetchSimulatedTrades,
          fetchAccumulatedRevenue,
          executeDust,
          executeRefreshPortfolio,
+         executeRefreshPortfolioModel,
          executeOrder,
          switchPortfolio,
          readApiKeys,
@@ -115,22 +116,6 @@ const AppBar = styled(MuiAppBar, {
   }),
 }));
 
-const boxStyle = {
-  position: 'absolute' as 'absolute',
-  top: '50%',
-  left: '50%',
-  transform: 'translate(-50%, -50%)',
-  width: '60%',
-  bgcolor: 'background.paper',
-  border: '2px solid #000',
-  boxShadow: 24,
-  p: 4,
-};
-
-const ProgressContainer = styled(Paper)(({ theme }) => ({
-  padding: theme.spacing(3)
-}));
-
 const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' })(
   ({ theme, open }) => ({
     '& .MuiDrawer-paper': {
@@ -164,10 +149,13 @@ const defaultTheme = createTheme({palette: {mode: 'dark'}});
 const readingAPIKeysMsg = 'Reading API Keys'
 const fetchCurrentPortfolioMsg = 'Fetching current portfolio from Binance'
 const convertToBnbMsg = 'Converting to BNB'
+const convertToUsdtMsg = 'Converting to USDT'
 const fetchRecommendedPortfolioMsg = 'Fetching recommended portfolio from Overmind'
 const loadingPortfolioReportMsg = 'Loading risk management report'
 
-export default function Dashboard() {
+export default function Dashboard(props:any) {
+  if (props.hasOwnProperty('default'))
+    return
   const [open, setOpen] = useState(true);
   const [portfolioType, setPortfolioType] = useState("none");
   const [portfolioActions, setPortfolioActions] = useState({});
@@ -175,15 +163,13 @@ export default function Dashboard() {
   const [portfolioData, setPortfolioData] = useState(null);
   const [recommendedPortfolioData, setRecommendedPortfolioData] = useState(null);
   const [currentPortfolioData, setCurrentPortfolioData] = useState(null);
-  const [ordersToExecute, setOrdersToExecute] = useState(null);
-  const [reportData, setReportData] = useState(null);
-  const [chartData, setChartData] = useState([]);
+  const [riskManagementData, setRiskManagementData] = useState(null)
+  // const [ordersToExecute, setOrdersToExecute] = useState(null);
 
   const [overmindApiKey, setOvermindApiKey] = useState("");
   const [binanceApiKey, setBinanceApiKey] = useState("");
   const [binanceSecretKey, setBinanceSecretKey] = useState("");
 
-  const [alertTitle, setAlertTitle] = useState('');
   const [alertMessage, setAlertMessage] = useState('');
   const [alertAction, setAlertAction] = useState(null);
   const [showAlert, setShowAlert] = useState(false);
@@ -196,7 +182,6 @@ export default function Dashboard() {
   const [btcBalance, setBtcBalance] = useState(0.0)
   const [usdtBalance, setUsdtBalance] = useState(0.0)
   const [settingsType, setSettingsType] = useState('none');
-  const [reportType, setReportType] = useState('none');
   const [portfolioAlerts, setPortfolioAlerts] = useState([]);
   const [validatedPortfolio, setValidatedPortfolio] = useState(false);
 
@@ -247,15 +232,15 @@ export default function Dashboard() {
     }
   }
 
-  const callRefreshPortfolio = async (overmindApiKey:string) => {
-    try {
-      const data = await executeRefreshPortfolio(overmindApiKey)
-      setPortfolioData(data);
-      setRecommendedPortfolioData(data);
-    } catch (error) {
-      setPortfolioData(null);
-    }
-  }
+  /* const callRefreshPortfolio = async (overmindApiKey:string) => {
+   *   try {
+   *     const data = await executeRefreshPortfolio(overmindApiKey)
+   *     setPortfolioData(data);
+   *     setRecommendedPortfolioData(data);
+   *   } catch (error) {
+   *     setPortfolioData(null);
+   *   }
+   * } */
 
   const callTrainPortfolio = async (overmindApiKey:string, iterations:number, maxTradeHorizon:number, tpPercentage:number, slPercentage:number) => {
     try {
@@ -310,7 +295,6 @@ export default function Dashboard() {
       }
 
       setPortfolioType('to-execute-portfolio')
-      setReportType('none')
       setShowAlert(true)
       setAlertAction(null)
       setPortfolioAlerts(null)
@@ -398,7 +382,7 @@ export default function Dashboard() {
       setShowProgress(false)
 
       setPortfolioType('to-execute-portfolio')
-      setReportType('none')
+
       setShowAlert(true)
       setAlertAction(null)
       setPortfolioAlerts(null)
@@ -421,7 +405,7 @@ export default function Dashboard() {
       setRecommendedPortfolioData(data);
       setProgressValue(100)
       setPortfolioType('recommended-portfolio')
-      setReportType('none')
+
       setShowProgress(false)
       setPortfolioActions({
         improvePortfolio: async (iterations:number, maxTradeHorizon:number, tpPercentage:number, slPercentage:number) => {
@@ -450,6 +434,8 @@ export default function Dashboard() {
     }
 
     const latestReport = await calculateRiskManagement(cleanedData)
+    setRiskManagementData(latestReport)
+    console.log({latestReport})
 
     const dataWithExpired = []
     for (let asset of cleanedData) {
@@ -475,13 +461,50 @@ export default function Dashboard() {
       for (const dust of dustResult.details) {
         dustAssets.push(dust.asset)
       }
+      if (dustAssets.length == 0) {
+        setProgressValue(100)
+        setProgressLabel('No assets available to convert to BNB')
+        await sleep(5000)
+        return
+      }
       setProgressValue(50)
       setProgressLabel(`Converting ${dustAssets.join(', ')}`)
       await sleep(2000)
       executeDust(binanceApiKey,
                   binanceSecretKey,
                   dustAssets).then(async (result) => {
-                    console.log({result})
+                    setProgressValue(100)
+                    setProgressLabel('Done')
+                    await sleep(1000)
+                  })
+      setShowProgress(false)
+      setProgressLabel('')
+    })
+    await useCurrentPortfolio(binanceApiKey, binanceSecretKey)
+  }
+
+  async function convertToUsdt() {
+    setProgressLabel(convertToUsdtMsg)
+    setProgressValue(30)
+    setShowProgress(true)
+    await sleep(1000)
+    fetchDust(binanceApiKey, binanceSecretKey).then(async (dustResult) => {
+      const dustAssets = []
+      for (const dust of dustResult.details) {
+        dustAssets.push(dust.asset)
+      }
+      if (dustAssets.length == 0) {
+        setProgressValue(100)
+        setProgressLabel('No assets available to convert to BNB')
+        await sleep(5000)
+        return
+      }
+      setProgressValue(50)
+      setProgressLabel(`Converting ${dustAssets.join(', ')}`)
+      await sleep(2000)
+      executeDust(binanceApiKey,
+                  binanceSecretKey,
+                  dustAssets).then(async (result) => {
                     setProgressValue(100)
                     setProgressLabel('Done')
                     await sleep(1000)
@@ -500,7 +523,7 @@ export default function Dashboard() {
       const data = await updateCurrentPortfolio(binanceApiKey, binanceSecretKey)
       setPortfolioData(data)
       setPortfolioType('current-portfolio')
-      setReportType('none')
+
       const actions = {
         convertToBnb: async () => {
           await convertToBnb()
@@ -523,7 +546,7 @@ export default function Dashboard() {
         setPortfolioData(null)
         setPortfolioActions(null)
         setPortfolioType('none')
-        setReportType('none')
+
         setSettingsType('none')
         // setPortfolioDataHandler(null)
         return;
@@ -538,10 +561,10 @@ export default function Dashboard() {
 
       const data = await switchPortfolio(recommendedPortfolioData, currentPortfolioData, reallocateOnlyExpired, reallocateAmongAll)
 
-      setOrdersToExecute(data)
+      // setOrdersToExecute(data)
       setPortfolioData(data)
       setPortfolioType('to-execute-portfolio')
-      setReportType('none')
+
       const actions = {
         validateOrders: async () => {
           await callValidatePortfolio(data)
@@ -557,27 +580,27 @@ export default function Dashboard() {
     } catch (error) {
       console.log('Error loading execute portfolio:', error)
       setPortfolioData(null)
-      setOrdersToExecute(null)
+      // setOrdersToExecute(null)
     }
   }
 
   async function useApiKeysConfig() {
     try {
       setSettingsType('api-keys')
-      setReportType('none')
+
       setPortfolioType('none')
     } catch (error) {
       setSettingsType('none')
-      setReportType('none')
+
       setPortfolioType('none')
     }
   }
 
-  async function calculateRiskManagement(currentPortfolio) {
+  async function calculateRiskManagement(currentPortfolio:any) {
     setProgressLabel(loadingPortfolioReportMsg)
     setProgressValue(0)
     setShowProgress(true)
-    const rows = await getReports(10)
+    const rows:any = await getReports(10)
     const data = JSON.parse(rows[0].report) // We always get 1.
 
     const symbols = []
@@ -707,8 +730,13 @@ export default function Dashboard() {
 
   async function usePortfolioReport() {
     try {
-      const data = await calculateRiskManagement(currentPortfolioData)
-      setPortfolioData(Object.values(data))
+      // Updating current portfolio first
+      // await useCurrentPortfolio(binanceApiKey, binanceSecretKey)
+      await updateCurrentPortfolio(binanceApiKey, binanceSecretKey)
+      // setCurrentPortfolioData(currPortfolioData)
+      // const data = await calculateRiskManagement(currentPortfolioData)
+      // setPortfolioData(Object.values(data))
+      setPortfolioData(Object.values(riskManagementData))
 
       setSettingsType('none')
       setPortfolioType('portfolio-report')
@@ -721,21 +749,22 @@ export default function Dashboard() {
   async function useEarningsReport() {
     try {
       setSettingsType('none')
-      setReportType('none')
+
       setPortfolioType('earnings-report')
     } catch (error) {
       setSettingsType('none')
-      setReportType('none')
+
       setPortfolioType('none')
     }
   }
 
-  async function handleRecommendedData(data) {
+  async function handleRecommendedData(data:any, assetName:string) {
     let totalAllocation = 0.0
     for (const asset of data)
       totalAllocation += asset.allocation
     for (const idx in data)
       data[idx].allocation = data[idx].allocation * 100 / totalAllocation
+    executeRefreshPortfolioModel(overmindApiKey, assetName)
     setPortfolioData(data)
     setRecommendedPortfolioData(data)
     setPortfolioType('recommended-portfolio')
@@ -743,9 +772,9 @@ export default function Dashboard() {
     setShowAlert(false)
   }
 
-  async function handleToExecuteData(data) {
+  async function handleToExecuteData(data:any) {
     setPortfolioData(data)
-    setOrdersToExecute(data)
+    // setOrdersToExecute(data)
     setPortfolioType('to-execute-portfolio')
     setAlertMessage('')
     setShowAlert(false)
@@ -760,7 +789,7 @@ export default function Dashboard() {
     setPortfolioActions(actions)
   }
 
-  async function handleReallocationOptions(options) {
+  async function handleReallocationOptions(options:any) {
     setReallocateOnlyExpired(options.reallocateOnlyExpired)
     setReallocateAmongAll(options.reallocateAmongAll)
   }
@@ -773,7 +802,7 @@ export default function Dashboard() {
     return await fetchAccumulatedRevenue(overmindApiKey, asset)
   }
 
-  const handlePortfolioMenuItemClick = async (item) => {
+  const handlePortfolioMenuItemClick = async (item:any) => {
     setSettingsType('none')
     if (item == 'recommended-portfolio')
       await useRecommendedPortfolio(overmindApiKey)
@@ -787,14 +816,7 @@ export default function Dashboard() {
       await usePortfolioReport()
   };
 
-  const handleReportsMenuItemClick = async (item) => {
-    /* if (item == 'earnings-report')
-     *   await useApiKeysConfig() */
-    if (item == 'portfolio-report')
-      await usePortfolioReport()
-  };
-
-  const handleConfigurationMenuItemClick = async (item) => {
+  const handleConfigurationMenuItemClick = async (item:any) => {
     if (item == 'api-keys')
       await useApiKeysConfig()
     if (item == 'quit')
@@ -823,6 +845,34 @@ export default function Dashboard() {
     } catch (error) {
       console.log(error)
     }
+  }
+
+  async function isTradeable() {
+    const latestReport = await calculateRiskManagement(cleanedData)
+    setRiskManagementData(latestReport)
+    console.log({latestReport})
+  }
+
+  function checkAutoTradeInterval(intervalInSeconds:number) {
+    const now = new Date();
+    const currentSeconds = now.getSeconds();
+    const currentMilliseconds = now.getMilliseconds();
+
+    // Calculate how many milliseconds until the next interval
+    const millisecondsUntilNextInterval =
+      ((intervalInSeconds - (currentSeconds % intervalInSeconds)) * 1000) - currentMilliseconds;
+
+    setTimeout(function () {
+      useTotalAssetsValue(binanceApiKey, binanceSecretKey).then((valuation) => {
+        saveValuation(valuation);
+        saveValuationsInterval(binanceApiKey, binanceSecretKey, intervalInSeconds);
+      });
+    }, millisecondsUntilNextInterval);
+  }
+
+  function useCheckAutoTradeInterval(binanceApiKey:string, binanceSecretKey:string) {
+    const storeValuationsEvery = 90 // seconds
+    saveValuationsInterval(binanceApiKey, binanceSecretKey, storeValuationsEvery)
   }
 
   async function useTotalAssetsValue(binanceApiKey:string, binanceSecretKey:string) {
@@ -854,7 +904,8 @@ export default function Dashboard() {
   }
 
   function useSaveValuationsInterval(binanceApiKey:string, binanceSecretKey:string) {
-    saveValuationsInterval(binanceApiKey, binanceSecretKey, 90)
+    const storeValuationsEvery = 90 // seconds
+    saveValuationsInterval(binanceApiKey, binanceSecretKey, storeValuationsEvery)
   }
 
   async function handleApiKeys(apiKeys) {
@@ -863,21 +914,33 @@ export default function Dashboard() {
     setBinanceSecretKey(apiKeys?.binanceSecretKey);
   }
 
+  function isDefined(val: any) {
+    if (val === null || val === undefined || val === "")
+      return false
+    return true
+  }
+
   async function useReadApiKeys() {
     setProgressLabel(readingAPIKeysMsg)
     setProgressValue(0)
     setShowProgress(true)
     const apiKeys = await readApiKeys()
-    handleApiKeys(apiKeys)
+    if (!isDefined(apiKeys.overmindApiKey) ||
+        !isDefined(apiKeys.binanceApiKey) ||
+        !isDefined(apiKeys.binanceSecretKey)) {
+      setSettingsType('api-keys')
+      setShowProgress(false)
+    }
+
+    else
+      handleApiKeys(apiKeys)
     // Updating shown balance
     if (apiKeys !== undefined &&
-        apiKeys.binanceApiKey !== undefined &&
-        apiKeys.binanceSecretKey !== undefined) {
+        isDefined(apiKeys.binanceApiKey) &&
+        isDefined(apiKeys.binanceSecretKey)) {
 
       // Show Total Assets Value
-      /* useTotalAssetsValue(apiKeys.binanceApiKey, apiKeys.binanceSecretKey);
-       * const { snapshotVos } = await fetchAccountSnapshot(apiKeys.binanceApiKey, apiKeys.binanceSecretKey)
-       * setChartData(snapshotVos) */
+      useTotalAssetsValue(apiKeys.binanceApiKey, apiKeys.binanceSecretKey);
 
       setProgressLabel(fetchCurrentPortfolioMsg)
       setProgressValue(30)
@@ -987,7 +1050,7 @@ export default function Dashboard() {
           </List>
         </Drawer>
         {(showAlert) && (
-          <Alert title={alertTitle} message={alertMessage} action={alertAction} closeAction={handleAlertClose} />
+          <Alert title={''} message={alertMessage} action={alertAction} closeAction={handleAlertClose} />
         )}
         {(showProgress) && (
           <Dialog onClose={handleProgressClose}

@@ -3,9 +3,6 @@ import { readTextFile, writeTextFile } from './fsHelpers';
 import Database from "tauri-plugin-sql-api"
 import { sleep } from './utils'
 
-const homePath = await homeDir()
-const projectPath = await join(homePath, "overmind")
-
 async function getDb() {
     return await Database.load("sqlite:desktop.db");
 }
@@ -31,15 +28,15 @@ export async function initDb() {
     await db.execute(createValuationsTableQuery)
 }
 
-function sortPortfolio(portfolio, isDesc): { [key: string]: number } {
+function sortPortfolio(portfolio:any, isDesc:any): any {
     // Convert the object to an array of key-value pairs
     const portfolioArray = Object.entries(portfolio);
 
     // Sort the array based on values in ascending order
     if (isDesc)
-        portfolioArray.sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+        portfolioArray.sort((a:any, b:any) => Math.abs(b[1]) - Math.abs(a[1]));
     else
-        portfolioArray.sort((a, b) => Math.abs(a[1]) - Math.abs(b[1]));
+        portfolioArray.sort((a:any, b:any) => Math.abs(a[1]) - Math.abs(b[1]));
 
     // Reconstruct the sorted object
     return Object.fromEntries(portfolioArray);
@@ -53,7 +50,7 @@ function getBTCPercentages(currPortfolio: { [key: string]: Array<number> }): { [
     // }
     for (const asset in currPortfolio) {
         // percentages[asset] = currPortfolio[asset][1] / sum;
-        percentages[asset] = parseFloat(currPortfolio[asset][3])
+        percentages[asset] = currPortfolio[asset][3]
     }
 
     return sortPortfolio(percentages, false)
@@ -141,12 +138,11 @@ export async function saveValuation(valuation) {
         const valuationJson = JSON.stringify(valuation)
 
         const db = await getDb()
-        const result = await db.execute(
+        await db.execute(
             "INSERT INTO valuations (id, valuation) VALUES ($1, $2)",
             [timestamp, valuationJson],
         );
 
-        console.log("Valuation saved successfully!", result);
         await sleep(500)
         singleton = false
     } catch (error) {
@@ -213,7 +209,7 @@ export async function saveApiKeys(apiKeys) {
         const configJson = JSON.stringify(configData, null, 2);
 
         // Write the JSON data to the desktop-config.json file using Tauri's API
-        const configPath = await join(projectPath, "desktop-config.json")
+        const configPath = await join(await join(await homeDir(), "overmind"), "desktop-config.json")
         await writeTextFile(configPath, configJson);
 
         console.log("API keys saved successfully!");
@@ -223,10 +219,14 @@ export async function saveApiKeys(apiKeys) {
 }
 
 export async function readApiKeys() {
+    const emptyResp = {overmindApiKey: "", binanceApiKey: "", binanceSecretKey: ""}
     try {
         // Read the contents of the desktop-config.json file using Tauri's API
-        const configPath = await join(projectPath, "desktop-config.json")
+        const configPath = await join(await join(await homeDir(), "overmind"), "desktop-config.json")
         const configJson = await readTextFile(configPath);
+
+        if (configJson === "")
+            return emptyResp
 
         // Parse the JSON data
         const configData = JSON.parse(configJson);
@@ -238,10 +238,11 @@ export async function readApiKeys() {
         return {overmindApiKey, binanceApiKey, binanceSecretKey}
     } catch (error) {
         console.error("Error reading API keys:", error);
+        return emptyResp
     }
 }
 
-export async function switchPortfolio(targetPortfolio, currPortfolio, reallocateOnlyExpired:bool, reallocateAmongAll:bool) {
+export async function switchPortfolio(targetPortfolio:any, currPortfolio:any, reallocateOnlyExpired:boolean, reallocateAmongAll:boolean) {
     currPortfolio = parseCurrentPortfolio(currPortfolio)
 
     let transactions = [];
@@ -253,9 +254,6 @@ export async function switchPortfolio(targetPortfolio, currPortfolio, reallocate
         transformedTargetPortfolio[order['instrument']] = order['allocation'] / 100
         riskManagement[order['instrument']] = order
     }
-
-    const fullCurrPortfolio = currPortfolio
-    let fullWithdrawingPercs = getBTCPercentages(fullCurrPortfolio)
 
     const result = balancePortfolios(transformedTargetPortfolio, currPortfolio)
     transformedTargetPortfolio = result[0]
@@ -526,6 +524,33 @@ export async function executeRefreshPortfolio(overmindApiKey:string) {
     }
 }
 
+export async function executeRefreshPortfolioModel(overmindApiKey:string, instrument:string) {
+    try {
+        const apiUrl = "http://localhost:3000/api/v1/portfolio/refresh-model";
+        const requestBody = {
+            overmindApiKey: overmindApiKey,
+            instrument
+        };
+
+        const response = await fetch(apiUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(requestBody),
+        });
+
+        if (!response.ok) {
+            throw new Error("Failed to refresh portfolio model.");
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.log(error)
+        return []
+    }
+}
+
 export async function fetchUserAsset(binanceApiKey:string, binanceSecretKey:string) {
     try {
         // Your API endpoint URL for the current portfolio data
@@ -625,7 +650,7 @@ export async function executeDust(binanceApiKey:string, binanceSecretKey:string,
     }
 }
 
-async function fetchExecutePortfolio(binanceApiKey:string, binanceSecretKey:string) {
+export async function fetchExecutePortfolio(binanceApiKey:string, binanceSecretKey:string, ordersToExecute:any) {
     try {
         const apiUrlGetQuote = "http://localhost:3000/api/v1/convert/getQuote";
         const apiUrlAcceptQuote = "http://localhost:3000/api/v1/convert/acceptQuote";
@@ -874,7 +899,7 @@ export async function getQuote(binanceApiKey:string, binanceSecretKey:string, tr
 }
 
 export async function getQuotes(binanceApiKey:string, binanceSecretKey:string, ordersToExecute) {
-    const quotes = []
+    const quotes:any = []
     for (const transaction of ordersToExecute) {
         quotes.push(await getQuote(binanceApiKey, binanceSecretKey, transaction))
     }
@@ -942,7 +967,7 @@ export async function executeOrder(binanceApiKey:string, binanceSecretKey:string
 }
 
 export async function executeOrders(binanceApiKey:string, binanceSecretKey:string, ordersToExecute) {
-    let quotes = []
+    let quotes:any = []
     for (const transaction of ordersToExecute) {
         const quote = await executeOrder(binanceApiKey, binanceSecretKey, transaction)
         quotes.push(quote)
