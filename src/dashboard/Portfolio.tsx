@@ -22,6 +22,7 @@ import FormGroup from '@mui/material/FormGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Switch from '@mui/material/Switch';
 
+import Chart from 'react-apexcharts'
 import IconButton from '@mui/material/IconButton';
 import { PrimeReactProvider } from 'primereact/api'
 import { InputNumber } from 'primereact/inputnumber'
@@ -118,7 +119,7 @@ const getTableMetadata = (type:string ) => {
     let title = ''
     if (type == 'recommended-portfolio') {
         columns = recommendedPortfolioColumns
-        title = 'Recommended Portfolio'
+        title = 'Portfolio Optimization'
     }
     if (type == 'current-portfolio' || type == 'execute-portfolio') {
         columns = currentPortfolioColumns
@@ -201,7 +202,7 @@ const StyledTableRow = styled(TableRow)(({ theme }) => ({
     },
 }));
 
-function Row({ data, type, alertRows, removeRowAction, simulatedTradesHandler, accumulatedRevenueHandler }) {
+function Row({ data, type, alertRows, removeRowAction, simulatedTradesHandler, accumulatedRevenueHandler, latestPatternHandler }) {
     const [open, setOpen] = useState(false);
     const [alertAction, setAlertAction] = useState(null);
     const [rowStatus, setRowStatus] = useState('');
@@ -209,7 +210,20 @@ function Row({ data, type, alertRows, removeRowAction, simulatedTradesHandler, a
     const [simulatedTradesData, setSimulatedTradesData] = useState([]);
     const [showAccumulatedRevenue, setShowAccumulatedRevenue] = useState(false);
     const [accumulatedRevenueData, setAccumulatedRevenueData] = useState([]);
+    const [latestPatternData, setLatestPatternData] = useState([]);
     const [instrument, setInstrument] = useState('');
+    const [patternSeries, setPatternSeries] = useState([]);
+    const [patternOptions, setPatternOptions] = useState({});
+
+    function getRandomHexColor() {
+        // Generate a random hex color code
+        const letters = '0123456789ABCDEF';
+        let color = '#';
+        for (let i = 0; i < 6; i++) {
+            color += letters[Math.floor(Math.random() * 16)];
+        }
+        return color;
+    }
 
     useEffect(() => {
         if (type === 'recommended-portfolio') {
@@ -232,6 +246,136 @@ function Row({ data, type, alertRows, removeRowAction, simulatedTradesHandler, a
             }
         }
     }, [type, alertRows, data]);
+
+    useEffect(() => {
+        if (type === 'recommended-portfolio' && instrument != "") {
+            latestPatternHandler(instrument).then((pattern) => {
+                let yMin = pattern[0]['input']
+                let yMax = yMin
+                const series = {}
+
+                series['input'] = {}
+                series['input']['name'] = 'Latest Prices'
+                series['input']['type'] = 'line'
+                series['input']['color'] = '#e3f2fd'
+                series['input']['data'] = []
+
+                series['patternArea'] = {}
+                series['patternArea']['name'] = "Recognized Pattern Area"
+                series['patternArea']['type'] = 'rangeArea'
+                series['patternArea']['color'] = '#29b6f6'
+                series['patternArea']['data'] = []
+
+                series['patternMean'] = {}
+                series['patternMean']['name'] = "Recognized Pattern Mean"
+                series['patternMean']['type'] = 'line'
+                series['patternMean']['color'] = '#29b6f6'
+                series['patternMean']['data'] = []
+
+                for (const idx in pattern) {
+                    const point = pattern[idx]
+                    const allPoints = [point['input'], point['upper'], point['mean'], point['lower']]
+                    const max = Math.max(...allPoints)
+                    const min = Math.min(...allPoints)
+                    if (max > yMax)
+                        yMax = max
+                    if (min < yMin)
+                        yMin = min
+                    series['input']['data'].push({x: idx, y: allPoints[0]})
+                    series['patternArea']['data'].push({x: idx, y: [point['upper'], point['lower']]})
+                    series['patternMean']['data'].push({x: idx, y: point['mean']})
+                    /* series['pattern']['data'].push({x: idx, y: [point['lower'], point['lower'], point['mean'], point['upper'], point['upper']]}) */
+                }
+
+                setPatternSeries([series['input'], series['patternArea'], series['patternMean']])
+
+                const opts = {
+                    chart: {
+                        animations: {
+                            enabled: false
+                        },
+                        dropShadow: {
+                            enabled: false
+                        },
+                        toolbar: {
+                            show: false
+                        },
+                        background: '#1e1e1e'
+                    },
+                    plotOptions: {
+                        bar: {
+                            rangeBarGroupRows: true,
+                        }
+                    },
+                    tooltip: {
+                        enabled: false
+                    },
+                    fill: {
+                        type: ['solid', 'solid', 'solid'],
+                        pattern: {
+                            style: 'verticalLines',
+                            strokeWidth: 3
+                        },
+                        gradient: {
+                            gradientToColors: ['#fff', '#fff'],
+                            gradientFromColors: ['#fff', '#fff'],
+                            inverseColors: true,
+                            shade: 'light',
+                            type: 'horizontal',
+                            opacityFrom: [1.0, 1.0, 0.0],
+                            opacityTo: [1.0, 0.5, 0.0]
+                        }
+                    },
+                    markers: {
+                        size: [3, 0, 0]
+                    },
+                    stroke: {
+                        curve: ['straight', 'straight', 'straight'],
+                        width: [0, 0, 5],
+                        dashArray: [0, 0, 5]
+                    },
+                    title: {
+                        text: '',
+                        align: 'center',
+                        offsetY: 10
+                    },
+                    theme: {
+                        mode: 'dark',
+                        palette: 'palette5'
+                    },
+                    grid: {
+                        show: false
+                    },
+                    noData: {
+                        text: 'Loading...'
+                    },
+                    legend: {
+                        show: false
+                    },
+                    xaxis: {
+                        labels: {
+                            show: false
+                        },
+                        axisBorder: {
+                            show: false
+                        },
+                        axisTicks: {
+                            show: false
+                        }
+                    },
+                    dataLabels: {
+                        enabled: false,
+                    },
+                    yaxis: {
+                        show: false,
+                        min: yMin,
+                        max: yMax
+                    }
+                }
+                setPatternOptions(opts)
+            })
+        }
+    }, [type, instrument]);
 
     const handleModalClose = async () => {
         try {
@@ -366,6 +510,21 @@ function Row({ data, type, alertRows, removeRowAction, simulatedTradesHandler, a
                                         </TableRow>
                                     </TableBody>
                                 </Table>
+
+                                <MoreInfoTitle variant="h6" gutterBottom>
+                                    Overmind's Activated Pattern
+                                </MoreInfoTitle>
+                                <Paragraph>
+                                    The plot below presents a simplified representation of the pattern recognized by Overmind under current market conditions. The proximity of the white dots to the blue dashed line indicates a better match. If most of the white dots fall outside the blue area, it suggests that Overmind has not encountered a similar market condition in the past.
+                                </Paragraph>
+
+                                <Box sx={{ width: '50%', textAlign: 'center', margin: 'auto' }}>
+                                    <Chart options={patternOptions}
+                                           type='rangeArea'
+                                           series={patternSeries}
+                                    />
+                                </Box>
+
                                 <MoreInfoTitle variant="h6" gutterBottom>
                                     Simulations
                                 </MoreInfoTitle>
@@ -447,7 +606,7 @@ function Row({ data, type, alertRows, removeRowAction, simulatedTradesHandler, a
     )
 }
 
-export default function Portfolio({ data, type, actions, alerts, dataHandler, validatedPortfolio, simulatedTradesHandler, accumulatedRevenueHandler, handleReallocationOptions }) {
+export default function Portfolio({ data, type, actions, alerts, dataHandler, validatedPortfolio, simulatedTradesHandler, accumulatedRevenueHandler, handleReallocationOptions, latestPatternHandler }) {
     const {columns, title} = getTableMetadata(type)
 
     const [training, setTraining] = useState(false);
@@ -845,6 +1004,7 @@ export default function Portfolio({ data, type, actions, alerts, dataHandler, va
                                              removeRowAction={removeRowAction}
                                              simulatedTradesHandler={simulatedTradesHandler}
                                              accumulatedRevenueHandler={accumulatedRevenueHandler}
+                                             latestPatternHandler={latestPatternHandler}
                                         />
                                     );
                                 })}

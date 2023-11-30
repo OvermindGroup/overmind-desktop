@@ -28,10 +28,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import HelpIcon from '@mui/icons-material/Help';
 
-import { mainListItems,
-         secondaryListItems,
-         configListItems
-} from './listItems';
+import { menuListItems } from './listItems';
 import News from './News';
 import Settings from './Settings';
 import Balance from './Balance';
@@ -47,12 +44,17 @@ import { fetchRecommendedPortfolio,
          // fetchAccountSnapshot,
          fetchSimulatedTrades,
          fetchAccumulatedRevenue,
+         fetchLatestPattern,
+         fetchSubAddress,
+         fetchNextToken,
          executeDust,
          executeRefreshPortfolio,
          executeRefreshPortfolioModel,
          executeOrder,
+         executeWithdrawApply,
          switchPortfolio,
          readApiKeys,
+         saveApiKeys,
          saveReport,
          saveValuation,
          getQuote,
@@ -375,6 +377,11 @@ export default function Dashboard(props:any) {
       }
       setProgressValue(75)
 
+      const nextTokenData = {assets: report.toAmounts, prices: report.startingPrices}
+      const nextToken = await fetchNextToken(overmindApiKey, nextTokenData)
+      setOvermindApiKey(nextToken)
+      console.log({nextToken})
+      await saveApiKeys({overmindApiKey: nextToken, binanceApiKey, binanceSecretKey})
       saveReport(report)
       await sleep(1000);
       setProgressValue(100)
@@ -802,6 +809,10 @@ export default function Dashboard(props:any) {
     return await fetchAccumulatedRevenue(overmindApiKey, asset)
   }
 
+  async function handleLatestPattern(asset:string) {
+    return await fetchLatestPattern(overmindApiKey, asset)
+  }
+
   const handlePortfolioMenuItemClick = async (item:any) => {
     setSettingsType('none')
     if (item == 'recommended-portfolio')
@@ -814,15 +825,16 @@ export default function Dashboard(props:any) {
       await useEarningsReport()
     if (item == 'portfolio-report')
       await usePortfolioReport()
-  };
-
-  const handleConfigurationMenuItemClick = async (item:any) => {
     if (item == 'api-keys')
       await useApiKeysConfig()
     if (item == 'quit')
       if (await killServer())
         await exit()
   };
+
+  /* const handleConfigurationMenuItemClick = async (item:any) => {
+   *
+   * }; */
 
   const getValuations = async(binanceApiKey:string, binanceSecretKey:string) => {
     try {
@@ -929,6 +941,7 @@ export default function Dashboard(props:any) {
         !isDefined(apiKeys.binanceApiKey) ||
         !isDefined(apiKeys.binanceSecretKey)) {
       setSettingsType('api-keys')
+      setPortfolioType('none')
       setShowProgress(false)
     }
 
@@ -956,6 +969,11 @@ export default function Dashboard(props:any) {
 
       setProgressValue(100)
       setShowProgress(false)
+
+      // const subAddress = await fetchSubAddress(apiKeys.binanceApiKey, apiKeys.binanceSecretKey, 'XRP')
+      // console.log({subAddress})
+
+      // executeWithdrawApply(apiKeys.binanceApiKey, apiKeys.binanceSecretKey, 0.000001, 'BCH', 'emanuell.cp@gmail.com')
     }
   }
 
@@ -1042,11 +1060,7 @@ export default function Dashboard(props:any) {
           </Toolbar>
           <Divider />
           <List component="nav">
-            {mainListItems(handlePortfolioMenuItemClick)}
-            <Divider sx={{ my: 1 }} />
-            {secondaryListItems(handlePortfolioMenuItemClick)}
-            <Divider sx={{ my: 1 }} />
-            {configListItems(handleConfigurationMenuItemClick)}
+            {menuListItems(handlePortfolioMenuItemClick)}
           </List>
         </Drawer>
         {(showAlert) && (
@@ -1117,20 +1131,23 @@ export default function Dashboard(props:any) {
                                accumulatedRevenueHandler={async (asset:string) => {
                                  return await handleAccumulatedRevenue(asset)
                                }}
+                               latestPatternHandler={async (asset:string) => {
+                                 return await handleLatestPattern(asset)
+                               }}
                                handleReallocationOptions={async (options) => {
                                  return await handleReallocationOptions(options)
                                }}
                     />
                   </Paper>
                 )}
-                {(settingsType != 'none') && (
-                  <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
-                    <Settings
-                      apiKeys={{overmindApiKey, binanceApiKey, binanceSecretKey}}
-                      action={handleApiKeys}
-                    />
-                  </Paper>
-                )}
+    {(settingsType != 'none') && (
+      <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
+        <Settings
+          apiKeys={{overmindApiKey, binanceApiKey, binanceSecretKey}}
+          action={handleApiKeys}
+        />
+      </Paper>
+    )}
                 {/*(portfolioType != 'none') && (
                     <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
                     <Report data={reportData}

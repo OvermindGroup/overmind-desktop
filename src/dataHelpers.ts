@@ -231,9 +231,15 @@ export async function readApiKeys() {
         // Parse the JSON data
         const configData = JSON.parse(configJson);
 
-        const overmindApiKey = configData.overmindApiKey || ""
+        let overmindApiKey = configData.overmindApiKey || ""
         const binanceApiKey = configData.binanceApiKey || ""
         const binanceSecretKey = configData.binanceSecretKey || ""
+
+        if (overmindApiKey === "") {
+            const initToken = await fetchInitToken()
+            overmindApiKey = initToken || ""
+            await saveApiKeys({ overmindApiKey, binanceApiKey, binanceSecretKey })
+        }
 
         return {overmindApiKey, binanceApiKey, binanceSecretKey}
     } catch (error) {
@@ -453,6 +459,34 @@ export async function fetchAccumulatedRevenue(overmindApiKey:string, asset:strin
     }
 }
 
+export async function fetchLatestPattern(overmindApiKey:string, asset:string) {
+    try {
+        const apiUrl = "http://localhost:3000/api/v1/results/latest-pattern";
+
+        const requestBody = {
+            overmindApiKey: overmindApiKey,
+            asset: asset
+        };
+
+        const response = await fetch(apiUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(requestBody),
+        });
+
+        if (!response.ok) {
+            throw new Error("Failed to fetch data.");
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.log(error)
+        return []
+    }
+}
+
 export async function killServer() {
     try {
         // Your API endpoint URL for the current portfolio data
@@ -464,6 +498,53 @@ export async function killServer() {
     } catch (error) {
         console.error("Error at attempting to shutdown server:", error);
         return false
+    }
+}
+
+export async function fetchInitToken() {
+    try {
+        const apiUrl = "http://localhost:3000/api/v1/auth/init-token";
+
+        const response = await fetch(apiUrl, {
+            method: "POST"
+        });
+
+        if (!response.ok) {
+            throw new Error("Failed to fetch init token.");
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.log(error)
+        return []
+    }
+}
+
+export async function fetchNextToken(overmindApiKey:string, portfolio) {
+    try {
+        const apiUrl = "http://localhost:3000/api/v1/auth/next-token";
+
+        const requestBody = {
+            overmindApiKey,
+            portfolio
+        };
+
+        const response = await fetch(apiUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(requestBody),
+        });
+
+        if (!response.ok) {
+            throw new Error("Failed to fetch next token.");
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.log(error)
+        return []
     }
 }
 
@@ -801,6 +882,33 @@ export async function fetchAccountSnapshot(binanceApiKey:string, binanceSecretKe
     }
 }
 
+export async function fetchKlines(symbol: string, startTime: number, endTime: number) {
+    try {
+        const apiUrl = "http://localhost:3000/api/v1/klines";
+
+        const requestBody = {
+            symbol, startTime, endTime
+        };
+
+        const response = await fetch(apiUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(requestBody),
+        });
+
+        if (!response.ok) {
+            throw new Error("Failed to fetch data.");
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error("Error fetching klines:", error);
+        return []
+    }
+}
+
 export async function fetchBTCUSDT() {
     try {
         const apiUrl = "http://localhost:3000/api/v1/ticker/price";
@@ -860,6 +968,62 @@ export async function fetchAssetPrices(assets) {
     } catch (error) {
         console.error("Error fetching asset prices:", error);
         return []
+    }
+}
+
+export async function executeWithdrawApply(binanceApiKey:string, binanceSecretKey:string, amount:number, asset:string, address:string) {
+    const apiUrlGetQuote = "http://localhost:3000/api/v1/capital/withdraw/apply";
+
+    try {
+        asset = asset.toUpperCase();
+        amount = parseFloat(amount.toFixed(8));
+        amount = await fmtAmount(asset, amount)
+
+        const getQuoteRequestBody = {
+            coin: asset,
+            address,
+            amount,
+            apiKey: binanceApiKey,
+            secretKey: binanceSecretKey
+        };
+
+        const getQuoteResponse = await fetch(apiUrlGetQuote, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(getQuoteRequestBody),
+        });
+
+        return await getQuoteResponse.json()
+    } catch (error) {
+        console.error("Error withdrawing:", error);
+    }
+}
+
+export async function fetchSubAddress(binanceApiKey:string, binanceSecretKey:string, coin:string) {
+    const url = "http://localhost:3000/api/v1/capital/deposit/subAddress";
+
+    try {
+        coin = coin.toUpperCase();
+
+        const params = {
+            coin,
+            apiKey: binanceApiKey,
+            secretKey: binanceSecretKey
+        };
+
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(params),
+        });
+
+        return await response.json()
+    } catch (error) {
+        console.error("Error fetching subAddress:", error);
     }
 }
 
