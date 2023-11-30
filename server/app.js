@@ -52,6 +52,35 @@ function extractMinMaxQuote(inputString) {
   }
 }
 
+serverApp.post('/api/v1/auth/init-token', async (req, res) => {
+  try {
+    const url = "http://localhost:1989/v1/auth/init-token";
+    const response = await axios.post(url);
+    res.json(response.data);
+  } catch (error) {
+    res.json({})
+    console.error("Error fetching init token:", error);
+    res.status(500).json({ error: 'An error occurred' });
+  }
+});
+
+serverApp.post('/api/v1/auth/next-token', async (req, res) => {
+  try {
+    const url = "http://localhost:1989/v1/auth/next-token";
+    const { overmindApiKey, portfolio } = req.body;
+    const params = {
+      token: overmindApiKey, portfolio: JSON.stringify(portfolio)
+    }
+    const fullUrl = `${url}?${new URLSearchParams(params)}`;
+    const response = await axios.post(fullUrl);
+    res.json(response.data);
+  } catch (error) {
+    res.json("")
+    console.error("Error fetching next token:", error);
+    res.status(500).json({ error: 'An error occurred' });
+  }
+});
+
 serverApp.post('/api/v1/portfolio/train-bullish', async (req, res) => {
   try {
     const url = "http://localhost:1989/v1/portfolio/train-bullish";
@@ -149,6 +178,31 @@ serverApp.post('/api/v1/results/accumulated-revenue', async (req, res) => {
     res.json(response.data);
   } catch (error) {
     console.error("Error fetching accumulated revenue:", error);
+    res.status(500).json({ error: 'An error occurred' });
+  }
+});
+
+serverApp.post('/api/v1/results/latest-pattern', async (req, res) => {
+  try {
+    const url = "http://localhost:1989/v1/results/latest-pattern";
+    const { overmindApiKey, asset } = req.body;
+
+    const token = `Bearer ${overmindApiKey}`;
+    const headers = {
+      Authorization: token
+    };
+
+    const params = {
+      instrument: asset
+    }
+
+    const fullUrl = `${url}?${new URLSearchParams(params)}`;
+
+    const response = await axios.get(fullUrl, { headers });
+
+    res.json(response.data);
+  } catch (error) {
+    console.error("Error fetching latest pattern:", error);
     res.status(500).json({ error: 'An error occurred' });
   }
 });
@@ -386,6 +440,31 @@ serverApp.post('/api/v1/accountSnapshot', async (req, res) => {
   }
 });
 
+serverApp.post('/api/v1/klines', async (req, res) => {
+  try {
+    const { symbol, startTime, endTime } = req.body;
+
+    const params = {
+      symbol,
+      interval: "1h",
+      startTime,
+      endTime,
+      limit: 1000
+    };
+
+    const baseUrl = 'https://api3.binance.com';
+    const endpoint = '/api/v3/klines';
+    const url = `${baseUrl}${endpoint}?${new URLSearchParams(params)}`;
+
+    const response = await axios.get(url).catch((error) => { console.log(error) });
+
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error fetching klines:', error.message);
+    res.status(500).json({ error: 'An error occurred' });
+  }
+});
+
 serverApp.post('/api/v1/ticker/price', async (req, res) => {
   try {
     const { assets } = req.body;
@@ -446,6 +525,80 @@ serverApp.post('/api/v1/exchangeInfo', async (req, res) => {
     res.json(response.data);
   } catch (error) {
     console.error('Error fetching open orders:', error.message);
+    res.status(500).json({ error: 'An error occurred' });
+  }
+});
+
+serverApp.post('/api/v1/capital/withdraw/apply', async (req, res) => {
+  let response
+  try {
+    const { coin, address, amount, apiKey, secretKey } = req.body;
+    const now = Date.now();
+
+    const encodedAddress = encodeURIComponent(address)
+
+    const params = {
+      timestamp: now,
+      coin,
+      address: encodedAddress,
+      amount
+    };
+
+    const signature = await createBinanceSignature(secretKey, params);
+    params.signature = signature;
+    params.address = address;
+
+    const baseUrl = 'https://api3.binance.com';
+    const endpoint = '/sapi/v1/capital/withdraw/apply';
+    const url = `${baseUrl}${endpoint}?${new URLSearchParams(params)}`;
+
+    const headers = {
+      'X-MBX-APIKEY': apiKey,
+    };
+
+    response = await axios.post(url, null, {headers})
+                          .then((response) => { res.json(response.data)})
+                          .catch((error) => {
+                            console.log({error})
+                            console.log(error.response.data)
+                          });
+  } catch (error) {
+    console.error('Error withdrawing:', error.message);
+    res.status(500).json({ error: 'An error occurred' });
+  }
+});
+
+serverApp.post('/api/v1/capital/deposit/subAddress', async (req, res) => {
+  try {
+    const { apiKey, secretKey, coin } = req.body;
+    const now = Date.now();
+    const email = 'overmind_virtual@lg4g60y5noemail.com'
+
+    const encodedEmail = encodeURIComponent(email)
+
+    const params = {
+      timestamp: now,
+      coin,
+      email: encodedEmail
+    };
+
+    const signature = await createBinanceSignature(secretKey, params);
+    params.signature = signature;
+    params.email = email
+
+    const baseUrl = 'https://api3.binance.com';
+    const endpoint = '/sapi/v1/capital/deposit/subAddress';
+    const url = `${baseUrl}${endpoint}?${new URLSearchParams(params)}`;
+
+    const headers = {
+      'X-MBX-APIKEY': apiKey,
+    };
+
+    const response = await axios.get(url, {headers}).catch((error) => { console.log(error) });
+
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error fetching subAddress:', error.message);
     res.status(500).json({ error: 'An error occurred' });
   }
 });
