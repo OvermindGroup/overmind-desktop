@@ -103,6 +103,8 @@ function balancePortfolios(targetPortfolio, currPortfolio) {
                                          currPortfolio[targetKey][2],
                                          newPerc * currPortfolio[targetKey][3] / withdrawingPercs[targetKey]
                                         ]
+                // Adding $0.0 transaction to update risk management criteria
+                newTarget[targetKey] = 0.0
             }
             if (withdrawingPercs[targetKey] < targetPortfolio[targetKey]) {
                 const newPerc = targetPortfolio[targetKey] - withdrawingPercs[targetKey]
@@ -301,9 +303,11 @@ export async function switchPortfolio(targetPortfolio:any, currPortfolio:any, re
             if (reallocateOnlyExpired && !currPortfolio[withdrawingAsset][2])
                 continue
 
+
+
             const toWithdraw = withdrawingPercs[withdrawingAsset]
             const remainingWithdraw = currPortfolio[withdrawingAsset][0]
-            if (toWithdraw <= 0 && remainingWithdraw <= 0)
+            if (toWithdraw <= 0 && remainingWithdraw <= 0 && toDeposit !== 0)
                 continue
 
             const withdrawingTotalAmount = currPortfolio[withdrawingAsset][0]
@@ -311,7 +315,9 @@ export async function switchPortfolio(targetPortfolio:any, currPortfolio:any, re
             let allocation = 0.0
 
             if (Math.abs(toWithdraw) >= Math.abs(toDeposit)) {
-                amount = toDeposit * withdrawingTotalAmount / toWithdraw
+                if (toDeposit != 0)
+                    amount = toDeposit * withdrawingTotalAmount / toWithdraw
+
                 withdrawingPercs[withdrawingAsset] -= Math.abs(toDeposit)
                 allocation = Math.abs(toDeposit)
                 if (reallocateAmongAll) {
@@ -1077,6 +1083,10 @@ export async function executeOrder(binanceApiKey:string, binanceSecretKey:string
 
     try {
         let { from, to, amount } = transaction;
+
+        // TODO At least replicate the other fields/keys
+        if (amount == 0.0)
+            return {toAmount: 0.0}
 
         from = from.slice(0, -3).toUpperCase();
         to = to.slice(0, -3).toUpperCase();
