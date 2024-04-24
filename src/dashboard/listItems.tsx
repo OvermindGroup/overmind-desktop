@@ -10,8 +10,6 @@ import { faDiscord,
          faTelegram,
          faReddit,
          faGithub,
-         faInstagram,
-         faTiktok,
          faYoutube
 } from '@fortawesome/free-brands-svg-icons'
 import {
@@ -170,24 +168,6 @@ export const menuListItems = (handle) => {
           <FontAwesomeIcon style={{width: '24px'}} className={"fa-xl"} icon={faGithub} />
         </ListItemIcon>
         <ListItemText primary="Github" />
-      </ListItemButton>
-
-      <ListItemButton onClick={() => handleClick('instagram')}
-                      className="menu-item"
-                      selected={isSelected('instagram')}>
-        <ListItemIcon>
-          <FontAwesomeIcon style={{width: '24px'}} className={"fa-xl"} icon={faInstagram} />
-        </ListItemIcon>
-        <ListItemText primary="Instagram" />
-      </ListItemButton>
-
-      <ListItemButton onClick={() => handleClick('tiktok')}
-                      className="menu-item"
-                      selected={isSelected('tiktok')}>
-        <ListItemIcon>
-          <FontAwesomeIcon style={{width: '24px'}} className={"fa-xl"} icon={faTiktok} />
-        </ListItemIcon>
-        <ListItemText primary="TikTok" />
       </ListItemButton>
 
       <Divider sx={{ my: 1 }} />
