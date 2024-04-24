@@ -74,13 +74,19 @@ const currentPortfolioColumns = [
 const executePortfolioColumns = [
     { Header: "From", accessor: "from", format: "asset" },
     { Header: "To", accessor: "to", format: "asset" },
-    { Header: "Amount to Convert", accessor: "amount" },
-    { Header: "Allocation (% of Total Portfolio)", accessor: "allocation", format: "percentage" },
+    { Header: "Amount to Convert", accessor: "amount", format: "amountExecute" },
+    { Header: "Allocation (% of Total Portfolio)", accessor: "allocation", format: "percentageExecute" },
     { Header: "Status", accessor: "status", format: "status" },
     { Header: "Remove Order", format: "removeOrder" }
 ];
 
 const formatPercentage = (cellValue:any) => {
+    return `${parseFloat(cellValue).toFixed(2)}%`;
+};
+
+const formatPercentageExecute = (cellValue:any) => {
+    if (parseFloat(cellValue) === 0)
+        return "Update Risk Management"
     return `${parseFloat(cellValue).toFixed(2)}%`;
 };
 
@@ -96,6 +102,12 @@ const formatAsset = (cellValue:any) => {
 
 const formatUSDT = (cellValue:any) => {
     return `$${parseFloat(cellValue).toFixed(4)} USDT`;
+};
+
+const formatAmountExecute = (cellValue:any) => {
+    if (parseFloat(cellValue) === 0)
+        return "Update Risk Management"
+    return cellValue
 };
 
 const formatBoolean = (cellValue:any) => {
@@ -210,20 +222,20 @@ function Row({ data, type, alertRows, removeRowAction, simulatedTradesHandler, a
     const [simulatedTradesData, setSimulatedTradesData] = useState([]);
     const [showAccumulatedRevenue, setShowAccumulatedRevenue] = useState(false);
     const [accumulatedRevenueData, setAccumulatedRevenueData] = useState([]);
-    const [latestPatternData, setLatestPatternData] = useState([]);
+    // const [latestPatternData, setLatestPatternData] = useState([]);
     const [instrument, setInstrument] = useState('');
     const [patternSeries, setPatternSeries] = useState([]);
     const [patternOptions, setPatternOptions] = useState({});
 
-    function getRandomHexColor() {
-        // Generate a random hex color code
-        const letters = '0123456789ABCDEF';
-        let color = '#';
-        for (let i = 0; i < 6; i++) {
-            color += letters[Math.floor(Math.random() * 16)];
-        }
-        return color;
-    }
+    /* function getRandomHexColor() {
+     *     // Generate a random hex color code
+     *     const letters = '0123456789ABCDEF';
+     *     let color = '#';
+     *     for (let i = 0; i < 6; i++) {
+     *         color += letters[Math.floor(Math.random() * 16)];
+     *     }
+     *     return color;
+     * } */
 
     useEffect(() => {
         if (type === 'recommended-portfolio') {
@@ -391,6 +403,8 @@ function Row({ data, type, alertRows, removeRowAction, simulatedTradesHandler, a
     const formatCellValue = (column:any, cell:any) => {
         if (column.format === "percentage") {
             return formatPercentage(cell.value);
+        } else if (column.format === "percentageExecute") {
+            return formatPercentageExecute(cell.value);
         } else if (column.format === "twoDecimals") {
             return formatTwoDecimals(cell.value);
         } else if (column.format === "asset") {
@@ -405,7 +419,8 @@ function Row({ data, type, alertRows, removeRowAction, simulatedTradesHandler, a
             return formatSeconds(cell.value);
         } else if (column.format === "usdt") {
             return formatUSDT(cell.value);
-        }
+        } else if (column.format === "amountExecute")
+            return formatAmountExecute(cell.value)
         else {
             return cell.value;
         }
@@ -619,8 +634,8 @@ export default function Portfolio({ data, type, actions, alerts, dataHandler, va
     const [trainBtnMsg, setTrainBtnMsg] = useState("Improve Portfolio with AI");
     const [resetBtnMsg, setResetBtnMsg] = useState("Reset Portfolio");
     const [validatingBtnMsg, setValidatingBtnMsg] = useState("Validate Orders");
-    const [convertingBnbBtnMsg, setConvertingBnbBtnMsg] = useState("Converting to BNB");
-    const [convertingUsdtBtnMsg, setConvertingUsdtBtnMsg] = useState("Converting to USDT");
+    /* const [convertingBnbBtnMsg, setConvertingBnbBtnMsg] = useState("Converting to BNB");
+     * const [convertingUsdtBtnMsg, setConvertingUsdtBtnMsg] = useState("Converting to USDT"); */
     const [executingBtnMsg, setExecutingBtnMsg] = useState("Execute Orders");
 
     const [alertTitle, setAlertTitle] = useState('');
@@ -763,9 +778,9 @@ export default function Portfolio({ data, type, actions, alerts, dataHandler, va
                          <Paragraph>Binance does not allow you to convert small balances of assets to other symbols, with the exception of BNB. You can convert all of your small balances first, so you can later convert your BNB to other symbols.</Paragraph>
                          <CustomButton variant="contained" disabled={convertingBnb} onClick={() => {
                              setConvertingBnb(true)
-                             setConvertingBnbBtnMsg("Converting to BNB...")
+                             // setConvertingBnbBtnMsg("Converting to BNB...")
                              actions.convertToBnb().then(() => {
-                                 setConvertingBnbBtnMsg(convertToBnbMsg)
+                                 // setConvertingBnbBtnMsg(convertToBnbMsg)
                                  setConvertingBnb(false)
                              })
                          }}>
@@ -776,9 +791,9 @@ export default function Portfolio({ data, type, actions, alerts, dataHandler, va
                          <Paragraph>In case you want to convert everything back to USDT, you can do so by pressing the button below.</Paragraph>
                          <CustomButton variant="contained" disabled={convertingUsdt} onClick={() => {
                              setConvertingUsdt(true)
-                             setConvertingUsdtBtnMsg("Converting to USDT...")
+                             // setConvertingUsdtBtnMsg("Converting to USDT...")
                              actions.convertToUsdt().then(() => {
-                                 setConvertingUsdtBtnMsg(convertToUsdtMsg)
+                                 // setConvertingUsdtBtnMsg(convertToUsdtMsg)
                                  setConvertingUsdt(false)
                              })
                          }}>

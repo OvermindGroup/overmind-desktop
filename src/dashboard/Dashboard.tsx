@@ -45,16 +45,16 @@ import { fetchRecommendedPortfolio,
          fetchSimulatedTrades,
          fetchAccumulatedRevenue,
          fetchLatestPattern,
-         fetchSubAddress,
-         fetchNextToken,
+         // fetchSubAddress,
+         // fetchNextToken,
          executeDust,
          executeRefreshPortfolio,
          executeRefreshPortfolioModel,
          executeOrder,
-         executeWithdrawApply,
+         // executeWithdrawApply,
          switchPortfolio,
          readApiKeys,
-         saveApiKeys,
+         // saveApiKeys,
          saveReport,
          saveValuation,
          getQuote,
@@ -151,7 +151,7 @@ const defaultTheme = createTheme({palette: {mode: 'dark'}});
 const readingAPIKeysMsg = 'Reading API Keys'
 const fetchCurrentPortfolioMsg = 'Fetching current portfolio from Binance'
 const convertToBnbMsg = 'Converting to BNB'
-const convertToUsdtMsg = 'Converting to USDT'
+// const convertToUsdtMsg = 'Converting to USDT'
 const fetchRecommendedPortfolioMsg = 'Fetching recommended portfolio from Overmind'
 const loadingPortfolioReportMsg = 'Loading risk management report'
 
@@ -187,6 +187,7 @@ export default function Dashboard(props:any) {
   const [portfolioAlerts, setPortfolioAlerts] = useState([]);
   const [validatedPortfolio, setValidatedPortfolio] = useState(false);
 
+  const [updatingPortfolio, setUpdatingPortfolio] = useState(false);
   const [runningValidations, setRunningValidations] = useState(false);
 
   const [reallocateOnlyExpired, setReallocateOnlyExpired] = useState(true);
@@ -266,7 +267,9 @@ export default function Dashboard(props:any) {
     }
   }
 
-  const callValidatePortfolio = async (ordersToExecute) => {
+  const validatePortfolio = async (ordersToExecute) => {
+    if (ordersToExecute.length < 1)
+      return false
     try {
       setShowProgress(true)
       setProgressValue(0)
@@ -296,26 +299,40 @@ export default function Dashboard(props:any) {
           portfolioAlerts.push(quote)
       }
 
-      setPortfolioType('to-execute-portfolio')
-      setShowAlert(true)
-      setAlertAction(null)
-      setPortfolioAlerts(null)
-      setAlertMessage('All orders have been validated successfully. You can now update your portfolio by clicking on the "Execute Orders" button.')
-
       if (portfolioAlerts.length > 0) {
-        setPortfolioAlerts(portfolioAlerts)
-        setAlertMessage('There are issues with some orders. Please check their status. After fixing all the issues, please try to validate the orders again.')
-        return
+        return false
       }
       setValidatedPortfolio(true)
+      return true
     } catch (error) {
-      setPortfolioData(null);
+      return false
+    }
+  }
+
+  const callValidatePortfolio = async (ordersToExecute) => {
+    try {
+      validatePortfolio(ordersToExecute).then((areValid) => {
+        setShowAlert(true)
+        setAlertAction(null)
+        setPortfolioAlerts(null)
+        setAlertMessage('All orders have been validated successfully. You can now update your portfolio by clicking on the "Execute Orders" button.')
+
+        if (!areValid) {
+          setAlertMessage('There are issues with some orders. Please check their status. After fixing all the issues, please try running the automatic trader again.')
+        }
+      })
+
+      setPortfolioType('to-execute-portfolio')
+    } catch (error) {
+      setPortfolioData([]);
       setAlertMessage('Something went wrong when trying to validate your orders.')
       setShowAlert(true)
     }
   }
 
-  const callExecutePortfolio = async (ordersToExecute) => {
+  const executePortfolio = async (ordersToExecute) => {
+    if (ordersToExecute.length < 1)
+      return false
     try {
       setShowProgress(true)
       setProgressLabel('Preparing data')
@@ -377,29 +394,39 @@ export default function Dashboard(props:any) {
       }
       setProgressValue(75)
 
-      const nextTokenData = {assets: report.toAmounts, prices: report.startingPrices}
-      const nextToken = await fetchNextToken(overmindApiKey, nextTokenData)
-      setOvermindApiKey(nextToken)
-      console.log({nextToken})
-      await saveApiKeys({overmindApiKey: nextToken, binanceApiKey, binanceSecretKey})
+      /* const nextTokenData = {assets: report.toAmounts, prices: report.startingPrices}
+       * const nextToken = await fetchNextToken(overmindApiKey, nextTokenData)
+       * setOvermindApiKey(nextToken)
+       * console.log({nextToken})
+       * await saveApiKeys({overmindApiKey: nextToken, binanceApiKey, binanceSecretKey}) */
+
       saveReport(report)
       await sleep(1000);
       setProgressValue(100)
       await sleep(1000);
       setShowProgress(false)
-
-      setPortfolioType('to-execute-portfolio')
-
-      setShowAlert(true)
-      setAlertAction(null)
-      setPortfolioAlerts(null)
-      setAlertMessage('All orders were executed successfully.')
+      return true
 
     } catch (error) {
-      setPortfolioData(null);
-      setAlertMessage('Something went wrong when trying to update your portfolio.')
-      setShowAlert(true)
+      return false
     }
+  }
+
+  const callExecutePortfolio = async (ordersToExecute) => {
+    executePortfolio(ordersToExecute).then((areValid) => {
+      if(areValid) {
+        setShowAlert(true)
+        setAlertAction(null)
+        setPortfolioAlerts(null)
+        setAlertMessage('All orders were executed successfully.')
+      } else {
+        setPortfolioData([]);
+        setAlertMessage('Something went wrong when trying to update your portfolio.')
+        setShowAlert(true)
+      }
+      
+    })
+    setPortfolioType('to-execute-portfolio')
   }
 
   async function useRecommendedPortfolio(overmindApiKey:string) {
@@ -442,15 +469,16 @@ export default function Dashboard(props:any) {
 
     const latestReport = await calculateRiskManagement(cleanedData)
     setRiskManagementData(latestReport)
-    console.log({latestReport})
 
     const dataWithExpired = []
     for (let asset of cleanedData) {
       if (latestReport.hasOwnProperty(asset.asset)) {
         asset.expired = latestReport[asset.asset].expired
       }
-      else
+      else {
         asset.expired = true // To force a reallocation; something went wrong somehow
+      }
+
       dataWithExpired.push(asset)
     }
 
@@ -479,7 +507,7 @@ export default function Dashboard(props:any) {
       await sleep(2000)
       executeDust(binanceApiKey,
                   binanceSecretKey,
-                  dustAssets).then(async (result) => {
+                  dustAssets).then(async () => {
                     setProgressValue(100)
                     setProgressLabel('Done')
                     await sleep(1000)
@@ -487,48 +515,51 @@ export default function Dashboard(props:any) {
       setShowProgress(false)
       setProgressLabel('')
     })
-    await useCurrentPortfolio(binanceApiKey, binanceSecretKey)
+    await useCurrentPortfolio()
   }
 
-  async function convertToUsdt() {
-    setProgressLabel(convertToUsdtMsg)
-    setProgressValue(30)
-    setShowProgress(true)
-    await sleep(1000)
-    fetchDust(binanceApiKey, binanceSecretKey).then(async (dustResult) => {
-      const dustAssets = []
-      for (const dust of dustResult.details) {
-        dustAssets.push(dust.asset)
-      }
-      if (dustAssets.length == 0) {
-        setProgressValue(100)
-        setProgressLabel('No assets available to convert to BNB')
-        await sleep(5000)
-        return
-      }
-      setProgressValue(50)
-      setProgressLabel(`Converting ${dustAssets.join(', ')}`)
-      await sleep(2000)
-      executeDust(binanceApiKey,
-                  binanceSecretKey,
-                  dustAssets).then(async (result) => {
-                    setProgressValue(100)
-                    setProgressLabel('Done')
-                    await sleep(1000)
-                  })
-      setShowProgress(false)
-      setProgressLabel('')
-    })
-    await useCurrentPortfolio(binanceApiKey, binanceSecretKey)
-  }
+  /* async function convertToUsdt() {
+   *   setProgressLabel(convertToUsdtMsg)
+   *   setProgressValue(30)
+   *   setShowProgress(true)
+   *   await sleep(1000)
+   *   fetchDust(binanceApiKey, binanceSecretKey).then(async (dustResult) => {
+   *     const dustAssets = []
+   *     for (const dust of dustResult.details) {
+   *       dustAssets.push(dust.asset)
+   *     }
+   *     if (dustAssets.length == 0) {
+   *       setProgressValue(100)
+   *       setProgressLabel('No assets available to convert to BNB')
+   *       await sleep(5000)
+   *       return
+   *     }
+   *     setProgressValue(50)
+   *     setProgressLabel(`Converting ${dustAssets.join(', ')}`)
+   *     await sleep(2000)
+   *     executeDust(binanceApiKey,
+   *                 binanceSecretKey,
+   *                 dustAssets).then(async (result) => {
+   *                   setProgressValue(100)
+   *                   setProgressLabel('Done')
+   *                   await sleep(1000)
+   *                 })
+   *     setShowProgress(false)
+   *     setProgressLabel('')
+   *   })
+   *   await useCurrentPortfolio(binanceApiKey, binanceSecretKey)
+   * } */
 
-  async function useCurrentPortfolio(binanceApiKey:string, binanceSecretKey:string) {
+  async function useCurrentPortfolio() {
     try {
       setProgressLabel(fetchCurrentPortfolioMsg)
       setProgressValue(15)
       setShowProgress(true)
-      const data = await updateCurrentPortfolio(binanceApiKey, binanceSecretKey)
-      setPortfolioData(data)
+      // console.log({currentPortfolioData})
+      /* const data = await updateCurrentPortfolio(binanceApiKey, binanceSecretKey)
+       * setPortfolioData(data) */
+      setPortfolioData(currentPortfolioData)
+      // console.log({data})
       setPortfolioType('current-portfolio')
 
       const actions = {
@@ -604,11 +635,16 @@ export default function Dashboard(props:any) {
   }
 
   async function calculateRiskManagement(currentPortfolio:any) {
+    if (currentPortfolio === null || currentPortfolio.length < 1)
+      return;
     setProgressLabel(loadingPortfolioReportMsg)
     setProgressValue(0)
     setShowProgress(true)
     const rows:any = await getReports(10)
     const data = JSON.parse(rows[0].report) // We always get 1.
+
+    // initialTransactions
+    //
 
     const symbols = []
     const transactions = []
@@ -621,6 +657,18 @@ export default function Dashboard(props:any) {
         const reportObj = JSON.parse(report.report)
         const toAmounts = reportObj.toAmounts
         let found = false
+        // const reccPortfolio = reportObj.recommendedPortfolio
+        // const initOrders = reportObj.initialOrdersToExecute
+        // for (const recc of reccPortfolio) {
+        //   const from = recc.instrument
+        //
+        //   if (assetName == recc.instrument)
+        //   found = true
+        // }
+        // if (found)
+        //   break
+
+        // console.log({toAmounts}, {assetName}, reportObj.startingPrices)
 
         if (toAmounts.hasOwnProperty(assetName)) {
           for (const transaction of reportObj.ordersToExecute) {
@@ -661,34 +709,9 @@ export default function Dashboard(props:any) {
       // startingPrices: data.startingPrices,
       // toAmounts: data.toAmounts
     }
-    /* for (const transaction of transactions) {
-     *   const from = transaction.from.slice(0, -3).toUpperCase()
-     *   const to = transaction.to.slice(0, -3).toUpperCase()
-     *   // const symbol = `${from}${to}`
-     *   const report = {
-     *     timestamp: transaction.timestamp,
-     *     from,
-     *     to,
-     *     // symbol,
-     *     // startingPrice: data.startingPrices[`${to}USDT`],
-     *     startingPrice: transaction.startingPrice,
-     *     fromAmount: transaction.amount,
-     *     toAmount: transaction.toAmount,
-     *     takeProfit: transaction.takeProfit,
-     *     stopLoss: transaction.stopLoss,
-     *     horizon: transaction.horizon,
-     *     timeRemaining: (transaction.timestamp + transaction.horizon * 1000) - new Date().getTime(),
-     *     expired: (transaction.timestamp + transaction.horizon * 1000) < new Date().getTime()
-     *   }
-     *   // reportsData.symbols.push(symbol)
-     *   reportsData.symbols.push(`${to}USDT`)
-     *   reportsData.transactions.push(report)
-     * } */
 
     setProgressValue(40)
 
-    // const symbols = [...new Set(reportsData.symbols)]
-    // console.log({symbols})
     const prices = await fetchAssetPrices(symbols)
 
     const _tableData = {}
@@ -818,7 +841,7 @@ export default function Dashboard(props:any) {
     if (item == 'recommended-portfolio')
       await useRecommendedPortfolio(overmindApiKey)
     if (item == 'current-portfolio')
-      await useCurrentPortfolio(binanceApiKey, binanceSecretKey)
+      await useCurrentPortfolio()
     if (item == 'to-execute-portfolio')
       await useToExecutePortfolio()
     if (item == 'earnings-report')
@@ -859,13 +882,7 @@ export default function Dashboard(props:any) {
     }
   }
 
-  async function isTradeable() {
-    const latestReport = await calculateRiskManagement(cleanedData)
-    setRiskManagementData(latestReport)
-    console.log({latestReport})
-  }
-
-  function checkAutoTradeInterval(intervalInSeconds:number) {
+  function updateCurrentPortfolioInterval(intervalInSeconds:number, binanceApiKey:string, binanceSecretKey:string) {
     const now = new Date();
     const currentSeconds = now.getSeconds();
     const currentMilliseconds = now.getMilliseconds();
@@ -874,17 +891,19 @@ export default function Dashboard(props:any) {
     const millisecondsUntilNextInterval =
       ((intervalInSeconds - (currentSeconds % intervalInSeconds)) * 1000) - currentMilliseconds;
 
+    // Doing it for the first time
+    updateCurrentPortfolio(binanceApiKey, binanceSecretKey)
+
+    // NOTE: I didn't make any changes to this.
     setTimeout(function () {
-      useTotalAssetsValue(binanceApiKey, binanceSecretKey).then((valuation) => {
-        saveValuation(valuation);
-        saveValuationsInterval(binanceApiKey, binanceSecretKey, intervalInSeconds);
-      });
+      updateCurrentPortfolio(binanceApiKey, binanceSecretKey)
+      updateCurrentPortfolioInterval(intervalInSeconds, binanceApiKey, binanceSecretKey)
     }, millisecondsUntilNextInterval);
   }
 
-  function useCheckAutoTradeInterval(binanceApiKey:string, binanceSecretKey:string) {
-    const storeValuationsEvery = 90 // seconds
-    saveValuationsInterval(binanceApiKey, binanceSecretKey, storeValuationsEvery)
+  function useUpdateCurrentPortfolioInterval(binanceApiKey:string, binanceSecretKey:string) {
+    const checkUpdatePortfolioEvery = 600 // seconds
+    updateCurrentPortfolioInterval(checkUpdatePortfolioEvery, binanceApiKey, binanceSecretKey)
   }
 
   async function useTotalAssetsValue(binanceApiKey:string, binanceSecretKey:string) {
@@ -984,6 +1003,50 @@ export default function Dashboard(props:any) {
      * }) */
   }, []);
 
+  // Update current portfolio every N seconds
+  useEffect(() => {
+    if (updatingPortfolio || binanceApiKey === "" || binanceSecretKey === "")
+      return;
+    useUpdateCurrentPortfolioInterval(binanceApiKey, binanceSecretKey)
+    setUpdatingPortfolio(true)
+  }, [binanceApiKey, binanceSecretKey, updatingPortfolio]);
+
+  // Check if we can trade every N seconds
+  useEffect(() => {
+    if (currentPortfolioData === null || overmindApiKey === "")
+      return;
+
+    // console.log('executing!', {riskManagementData}, {currentPortfolioData})
+
+    let isAnyExpired = false
+    for (const asset of currentPortfolioData) {
+      if (asset.expired) {
+        isAnyExpired = true
+        break
+      }
+    }
+    // if (isAnyExpired || true) {
+    // if (isAnyExpired && false) {
+    if (isAnyExpired) {
+      fetchRecommendedPortfolio(overmindApiKey).then((data) => {
+        setPortfolioData(data)
+        setRecommendedPortfolioData(data);
+
+        switchPortfolio(data, currentPortfolioData, true, true).then((switchData) => {
+          // switchPortfolio(data, currentPortfolioData, false, true).then((switchData) => {
+          validatePortfolio(switchData).then((areValid) => {
+            if (areValid) {
+              executePortfolio(switchData).then(() => {
+                updateCurrentPortfolio(binanceApiKey, binanceSecretKey)
+              })
+            }
+          })
+        })
+      })
+    }
+
+  }, [currentPortfolioData, overmindApiKey]);
+
   useEffect(() => {
     if (portfolioType == 'to-execute-portfolio')
       useToExecutePortfolio()
@@ -992,6 +1055,10 @@ export default function Dashboard(props:any) {
   useEffect(() => {
     setValidatedPortfolio(false)
   }, [portfolioData]);
+
+  /* const openLink = (url) => {
+   *   shell.open(url);
+   * }; */
 
   return (
     <ThemeProvider theme={defaultTheme}>
@@ -1091,7 +1158,7 @@ export default function Dashboard(props:any) {
           <Toolbar />
           <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
             <Grid container spacing={3}>
-              <Grid item xs={12} md={8} lg={9}>
+              <Grid item xs={12} md={8} lg={7}>
                 <Paper
                   sx={{
                     p: 2,
@@ -1114,6 +1181,21 @@ export default function Dashboard(props:any) {
                   }}
                 >
                   <Balance usdtBalance={usdtBalance} btcBalance={btcBalance} />
+                </Paper>
+              </Grid>
+              <Grid item xs={12} md={4} lg={2}>
+                <Paper
+                  sx={{
+                    p: 2,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: 240,
+                    textAlign: 'center',
+                    justifyContent: 'center', // Center content horizontally
+                    alignItems: 'center', // Center content vertically
+                  }}
+                >
+                  
                 </Paper>
               </Grid>
               <Grid item xs={12}>
@@ -1140,14 +1222,14 @@ export default function Dashboard(props:any) {
                     />
                   </Paper>
                 )}
-    {(settingsType != 'none') && (
-      <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
-        <Settings
-          apiKeys={{overmindApiKey, binanceApiKey, binanceSecretKey}}
-          action={handleApiKeys}
-        />
-      </Paper>
-    )}
+                {(settingsType != 'none') && (
+                  <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
+                    <Settings
+                      apiKeys={{overmindApiKey, binanceApiKey, binanceSecretKey}}
+                      action={handleApiKeys}
+                    />
+                  </Paper>
+                )}
                 {/*(portfolioType != 'none') && (
                     <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
                     <Report data={reportData}
