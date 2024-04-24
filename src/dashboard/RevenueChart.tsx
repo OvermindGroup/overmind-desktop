@@ -25,7 +25,9 @@ const RevenueChart = (props:any) => {
 
         const blueColor = '#29b6f6'
         const redColor = '#f44336'
-        const lineColor = data[data.length-1] < 0.0 ? blueColor : redColor
+        const whiteColor = '#fff'
+        // const lineColor = data[data.length-1][1] > 0.0 ? blueColor : redColor
+        const lineColor = whiteColor
 
         const accumulatedRevenueSeries = {
             name: 'Accumulated Revenue',
@@ -33,14 +35,21 @@ const RevenueChart = (props:any) => {
             color: lineColor,
             data: []
         }
+        const annotations = { points: [] }
         let yMin = 0.0
         let yMax = 0.0
+
         for (const point of data) {
+            const markerColor = point[2] > 0 ? redColor : blueColor
             if (point[1] < yMin)
                 yMin = point[1]
             if (point[1] > yMax)
                 yMax = point[1]
             accumulatedRevenueSeries.data.push({x: new Date(point[0]).getTime(), y: point[1]})
+            annotations.points.push({
+                x: new Date(point[0]).getTime(),
+                y: point[1],
+                marker: {size: 4, fillColor: markerColor, strokeColor: markerColor}})
         }
 
         setSeries([accumulatedRevenueSeries])
@@ -98,13 +107,7 @@ const RevenueChart = (props:any) => {
                 min: yMin,
                 max: yMax
             },
-            annotations: {
-                yaxis: [{
-                    y: 0,
-                    width: '100%',
-                    borderColor: '#fff'
-                }]
-            }
+            annotations
         })
     }, [props.accumulatedRevenueData, props.instrument]);
 
