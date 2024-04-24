@@ -86,7 +86,7 @@ export default function News({ overmindApiKey }) {
         <Title variant="h5">{newsTitle}</Title>
       </Grid>
       <Grid item xs={4} style={{ textAlign: 'center' }}>
-        <Paper elevation={12} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+        <Paper elevation={12} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '140px' }}>
           <img src={newsThumbnail} alt="News Thumbnail" />
         </Paper>
       </Grid>
