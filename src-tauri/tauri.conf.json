@@ -14,7 +14,7 @@
     "allowlist": {
       "all": false,
       "shell": {
-        "all": false,
+        "all": true,
         "open": true
       },
       "path": {
@@ -32,7 +32,7 @@
     },
     "bundle": {
       "active": true,
-      "targets": "all",
+      "targets": ["deb", "msi", "dmg"],
       "identifier": "overmind-desktop",
       "icon": [
         "icons/icon.png",
