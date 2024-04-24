@@ -8,6 +8,9 @@ import Typography from '@mui/material/Typography';
 import InputLabel from '@mui/material/InputLabel'
 import MenuItem from '@mui/material/MenuItem'
 import FormControl from '@mui/material/FormControl'
+import FormGroup from '@mui/material/FormGroup'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import Checkbox from '@mui/material/Checkbox'
 import Chart from 'react-apexcharts'
 import { getValuations, getReports, fetchKlines } from '../dataHelpers'
 
@@ -47,6 +50,7 @@ const Earnings = () => {
     const [options, setOptions] = useState({});
     const [benchmark, setBenchmark] = useState("BTCUSDT");
     const [timewindow, setTimewindow] = useState(168);
+    const [showPortfolioUpdates, setShowPortfolioUpdates] = useState(false);
 
     const handleTimewindowSliderChange = (_: Event, newValue: number | number[]) => {
         setTimewindow(newValue as number)
@@ -62,7 +66,7 @@ const Earnings = () => {
         for (const item of data) {
             const groupTimestamp = Math.floor(item.timestamp / (timeframeMinutes * 60 * 1000)) * (timeframeMinutes * 60 * 1000);
 
-            if (!groupedData[groupTimestamp]) {
+            if (!(groupTimestamp in groupedData)) {
                 groupedData[groupTimestamp] = {
                     open: item.price,
                     high: item.price,
@@ -89,6 +93,36 @@ const Earnings = () => {
         return result;
     }
 
+    const getReportTimestamps = (reports: any) => {
+        if (!showPortfolioUpdates)
+            return
+        const reportTimestamps:any = []
+        for (const report of reports) {
+            reportTimestamps.push({
+                x: report.id,
+                label: {
+                    text: 'Portfolio Update',
+                    orientation: 'vertical',
+                    position: 'right',
+                    borderWidth: 1,
+                    style: {
+                        color: '#fff',
+                        fontSize: 12,
+                        fontFamily: 'courier new',
+                        cssClass: 'outlined',
+                        padding: {
+                            right: 0,
+                            left: 0,
+                            top: -100,
+                            bottom: 0
+                        }
+                    }
+                }
+            })
+        }
+        return reportTimestamps
+    }
+
     useEffect(() => {
         const timeframeMinutes = 60
         // const valuationsCount = timeframeMinutes * 48
@@ -96,30 +130,7 @@ const Earnings = () => {
         // const valuationsCount = timeframeMinutes * 700
         const valuationsCount = timeframeMinutes * timewindow
         getReports(valuationsCount).then((reports:any) => {
-            const reportTimestamps:any = []
-            for (const report of reports) {
-                reportTimestamps.push({
-                    x: report.id,
-                    label: {
-                        text: 'Portfolio Update',
-                        orientation: 'vertical',
-                        position: 'right',
-                        borderWidth: 1,
-                        style: {
-                            color: '#fff',
-                            fontSize: 12,
-                            fontFamily: 'courier new',
-                            cssClass: 'outlined',
-                            padding: {
-                                right: 0,
-                                left: 0,
-                                top: -100,
-                                bottom: 0
-                            }
-                        }
-                    }
-                })
-            }
+            let reportTimestamps:any = getReportTimestamps(reports)
 
             getValuations(valuationsCount).then((valuations:any) => {
                 const startValuation = JSON.parse(valuations[valuations.length - 1].valuation)
@@ -165,6 +176,16 @@ const Earnings = () => {
                             benchMin = val
                     }
 
+                    // One of these go backwards, but ApexCharts organizes them according to time
+                    const benchLast = comparisonData[comparisonData.length-1]
+                    const earningsLast = earningsData[0]
+                    console.log(benchLast.y, earningsLast.y[3])
+                    const relativePerformance = (((earningsLast.y[3] / benchLast.y) - 1) * 100.0).toFixed(2)
+
+                    const rpSign = relativePerformance > 0 ? '+' : ''
+
+                    const reportTitle = `Profit & Loss (${rpSign}${relativePerformance}%)`
+
                     yMin = Math.min(yMin, benchMin)
                     yMax = Math.max(yMax, benchMax)
 
@@ -186,7 +207,7 @@ const Earnings = () => {
                             }
                         },
                         title: {
-                            text: `Profit & Loss`,
+                            text: reportTitle,
                             align: 'center',
                             offsetY: 10
                         },
@@ -253,7 +274,11 @@ const Earnings = () => {
             })
         })
         setRefresh(false)
-    }, [timewindow, refresh, benchmark]);
+    }, [timewindow, refresh, benchmark, showPortfolioUpdates]);
+
+    const togglePortfolioUpdates = () => {
+        setShowPortfolioUpdates(!showPortfolioUpdates);
+    };
 
     return (
         <Fragment>
@@ -269,7 +294,7 @@ const Earnings = () => {
                 onChange={handleTimewindowSliderChange}
                 aria-labelledby="timewindow-slider"
                 valueLabelDisplay="auto"
-                marks={[{value: 24, label: ''},
+                marks={[{value: 12, label: ''},
                         {value: 168, label: '168 hours (1 week)'},
                         {value: 252, label: '|'},
                         {value: 336, label: '336 hours (2 weeks)'},
@@ -279,7 +304,7 @@ const Earnings = () => {
                         {value: 672, label: '672 hours (4 weeks)'},
                         {value: 756, label: ''}]}
                 step={12}
-                min={24}
+                min={12}
                 max={756}
             />
             <Title variant="h6">Benchmark Market</Title>
@@ -321,6 +346,14 @@ const Earnings = () => {
                         <MenuItem value={"ICPUSDT"}>ICP</MenuItem>
                     </Select>
                 </FormControl>
+            </Box>
+            <Box sx={{ marginTop: 2, marginBottom: 2 }}>
+                <FormGroup>
+                    <FormControlLabel
+                        control={<Checkbox // defaultChecked
+                                           onChange={togglePortfolioUpdates} />}
+                        label="Show Portfolio Updates" />
+                </FormGroup>
             </Box>
             <Title variant="h6"></Title>
             <CustomButton variant="contained" onClick={() => {
